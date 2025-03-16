@@ -10,7 +10,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { LogIn, Menu, X } from "lucide-react";
+import { LogIn, Menu, X, Bot } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -20,9 +20,10 @@ import {
 
 interface NavbarProps {
   transparent?: boolean;
+  onOpenAssistant?: () => void;
 }
 
-const Navbar = ({ transparent = false }: NavbarProps) => {
+const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
   const [isScrolled, setIsScrolled] = React.useState(false);
 
   React.useEffect(() => {
@@ -125,6 +126,19 @@ const Navbar = ({ transparent = false }: NavbarProps) => {
 
           {/* Authentication Buttons */}
           <div className="flex items-center space-x-4">
+            {onOpenAssistant && (
+              <Button
+                variant={transparent && !isScrolled ? "outline" : "secondary"}
+                className={cn("gap-2", {
+                  "border-white text-white hover:bg-white hover:text-foreground":
+                    transparent && !isScrolled,
+                })}
+                onClick={onOpenAssistant}
+              >
+                <Bot className="h-4 w-4" />
+                Assistant
+              </Button>
+            )}
             <Link to="/auth/login">
               <Button
                 variant={transparent && !isScrolled ? "outline" : "default"}
@@ -202,6 +216,18 @@ const Navbar = ({ transparent = false }: NavbarProps) => {
                     Programs
                   </Link>
                 </SheetClose>
+                {onOpenAssistant && (
+                  <SheetClose asChild>
+                    <Button
+                      className="w-full gap-2 justify-start"
+                      variant="outline"
+                      onClick={onOpenAssistant}
+                    >
+                      <Bot className="h-4 w-4" />
+                      AI Assistant
+                    </Button>
+                  </SheetClose>
+                )}
               </nav>
               <div className="mt-auto space-y-4 py-6">
                 <SheetClose asChild>

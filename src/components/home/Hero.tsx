@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface HeroProps {
   headline?: string;
@@ -13,17 +14,39 @@ const Hero = ({
   subheading = "At Ninio Kindergarten, we provide a stimulating educational experience that fosters creativity, curiosity, and confidence in every child.",
   backgroundImage = "https://images.unsplash.com/photo-1587653263995-422546a7a559?w=1512&q=80",
 }: HeroProps) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // Fallback image in case the provided URL fails
+  const fallbackImage =
+    "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=1512&q=80";
+
+  // Reset states when backgroundImage changes
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+  }, [backgroundImage]);
+
   return (
     <div className="relative w-full h-[600px] bg-gray-100 overflow-hidden">
-      {/* Background Image with Overlay */}
+      {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img
-          src={backgroundImage}
+          src={imageError ? fallbackImage : backgroundImage}
           alt="Children in kindergarten"
           className="w-full h-full object-cover"
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/40 mix-blend-multiply" />
       </div>
+
+      {/* Loading state */}
+      {!imageLoaded && !imageError && (
+        <div className="absolute inset-0 z-0 flex items-center justify-center bg-gray-200">
+          <p className="text-gray-600">Loading image...</p>
+        </div>
+      )}
 
       {/* Content Container */}
       <div className="relative z-10 container mx-auto px-4 h-full flex flex-col justify-center">
@@ -35,17 +58,21 @@ const Hero = ({
             {subheading}
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button size="lg" className="font-semibold">
-              Register Now
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 font-semibold"
-            >
-              Learn More
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            <Link to="/auth/register">
+              <Button size="lg" className="font-semibold w-full sm:w-auto">
+                Register Now
+              </Button>
+            </Link>
+            <Link to="/programs">
+              <Button
+                variant="outline"
+                size="lg"
+                className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 font-semibold w-full sm:w-auto"
+              >
+                Learn More
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

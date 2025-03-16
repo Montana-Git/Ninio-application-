@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, LogIn } from "lucide-react";
@@ -32,6 +34,9 @@ interface LoginFormValues {
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const { signIn, user } = useAuth();
+  const navigate = useNavigate();
 
   const form = useForm<LoginFormValues>({
     defaultValues: {
@@ -41,14 +46,35 @@ const LoginPage = () => {
     },
   });
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      if (user.role === "admin") {
+        navigate("/dashboard/admin");
+      } else {
+        navigate("/dashboard/parent");
+      }
+    }
+  }, [user, navigate]);
+
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-    // Simulate API call
-    console.log("Login data:", data);
-    setTimeout(() => {
+    setLoginError("");
+
+    try {
+      const { error } = await signIn(data.email, data.password);
+
+      if (error) {
+        setLoginError("Invalid email or password");
+        throw error;
+      }
+
+      // Navigation will happen in the useEffect when user state updates
+    } catch (error) {
+      console.error("Login error:", error);
+    } finally {
       setIsLoading(false);
-      // Redirect would happen here based on user role
-    }, 1500);
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -157,6 +183,9 @@ const LoginPage = () => {
                   </Link>
                 </div>
 
+                {loginError && (
+                  <p className="text-sm text-red-500 mb-2">{loginError}</p>
+                )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <span className="flex items-center gap-2">

@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Program {
   id: string;
@@ -105,19 +106,23 @@ const ProgramsSection = ({
                   </div>
                 </div>
                 <p className="text-gray-600 mb-6">{program.description}</p>
-                <Button variant="outline" className="w-full group">
-                  Learn More
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
+                <Link to={`/programs#${program.id}`}>
+                  <Button variant="outline" className="w-full group">
+                    Learn More
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           ))}
         </div>
 
         <div className="mt-12 text-center">
-          <Button size="lg" className="px-8">
-            View All Programs
-          </Button>
+          <Link to="/programs">
+            <Button size="lg" className="px-8">
+              View All Programs
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

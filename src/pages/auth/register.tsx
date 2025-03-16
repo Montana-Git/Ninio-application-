@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -39,6 +40,8 @@ const registerSchema = z
       ),
     confirmPassword: z.string(),
     role: z.enum(["parent", "admin"]),
+    childrenCount: z.number().min(0).max(10).optional(),
+    childrenNames: z.array(z.string()).optional(),
     termsAccepted: z.boolean().refine((val) => val === true, {
       message: "You must accept the terms and conditions",
     }),
@@ -46,7 +49,27 @@ const registerSchema = z
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
-  });
+  })
+  .refine(
+    (data) => {
+      if (
+        data.role === "parent" &&
+        data.childrenCount &&
+        data.childrenCount > 0
+      ) {
+        return (
+          data.childrenNames &&
+          data.childrenNames.length === data.childrenCount &&
+          data.childrenNames.every((name) => name.trim().length > 0)
+        );
+      }
+      return true;
+    },
+    {
+      message: "Please provide all children names",
+      path: ["childrenNames"],
+    },
+  );
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
@@ -54,6 +77,9 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [childrenCount, setChildrenCount] = useState(0);
+  const [childrenNames, setChildrenNames] = useState<string[]>([]);
+  const [registerError, setRegisterError] = useState("");
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -64,16 +90,65 @@ const RegisterPage = () => {
       password: "",
       confirmPassword: "",
       role: "parent",
+      childrenCount: 0,
+      childrenNames: [],
       termsAccepted: false,
     },
   });
 
+  const { signUp } = useAuth();
+
+  // Update children names array when count changes
+  useEffect(() => {
+    const newCount = form.getValues("childrenCount") || 0;
+    const currentNames = form.getValues("childrenNames") || [];
+
+    // Adjust the array size based on the new count
+    if (newCount > currentNames.length) {
+      // Add empty strings for new children
+      const newNames = [
+        ...currentNames,
+        ...Array(newCount - currentNames.length).fill(""),
+      ];
+      form.setValue("childrenNames", newNames);
+      setChildrenNames(newNames);
+    } else if (newCount < currentNames.length) {
+      // Remove extra names
+      const newNames = currentNames.slice(0, newCount);
+      form.setValue("childrenNames", newNames);
+      setChildrenNames(newNames);
+    }
+  }, [childrenCount, form]);
+
   const onSubmit = async (data: RegisterFormValues) => {
     setIsSubmitting(true);
+    setRegisterError("");
     try {
-      // Simulate API call
-      console.log("Registration data:", data);
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Only include children data if role is parent
+      const childrenCount =
+        data.role === "parent" ? data.childrenCount || 0 : 0;
+      const childrenNames =
+        data.role === "parent" ? data.childrenNames || [] : [];
+
+      const { error } = await signUp(
+        data.email,
+        data.password,
+        data.firstName,
+        data.lastName,
+        data.role,
+        childrenCount,
+        childrenNames,
+      );
+
+      if (error) {
+        console.error("Registration error:", error);
+        if (error.message) {
+          setRegisterError(error.message);
+        } else {
+          setRegisterError("Registration failed. Please try again.");
+        }
+        throw error;
+      }
 
       // Redirect to login page after successful registration
       window.location.href = "/auth/login";
@@ -256,6 +331,71 @@ const RegisterPage = () => {
                   )}
                 />
 
+                {/* Children Count - Only show for parents */}
+                {form.watch("role") === "parent" && (
+                  <FormField
+                    control={form.control}
+                    name="childrenCount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Number of Children</FormLabel>
+                        <FormControl>
+                          <select
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={field.value}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              field.onChange(value);
+                              setChildrenCount(value);
+                            }}
+                          >
+                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                              <option key={num} value={num}>
+                                {num === 0
+                                  ? "No children"
+                                  : num === 1
+                                    ? "1 child"
+                                    : `${num} children`}
+                              </option>
+                            ))}
+                          </select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Children Names - Only show if childrenCount > 0 */}
+                {form.watch("role") === "parent" &&
+                  form.watch("childrenCount") > 0 && (
+                    <div className="space-y-4">
+                      <h3 className="font-medium">Children's Names</h3>
+                      {Array.from({
+                        length: form.watch("childrenCount") || 0,
+                      }).map((_, index) => (
+                        <FormField
+                          key={index}
+                          control={form.control}
+                          name={`childrenNames.${index}`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Child {index + 1} Name</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={`Enter child ${index + 1} name`}
+                                  {...field}
+                                  value={field.value || ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
+
                 <FormField
                   control={form.control}
                   name="termsAccepted"
@@ -280,6 +420,9 @@ const RegisterPage = () => {
                   )}
                 />
 
+                {registerError && (
+                  <p className="text-sm text-red-500 mb-2">{registerError}</p>
+                )}
                 <Button
                   type="submit"
                   className="w-full"

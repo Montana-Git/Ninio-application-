@@ -1,6 +1,9 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { BookOpen, Heart, Lightbulb, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface PhilosophySectionProps {
   title?: string;
@@ -140,6 +143,16 @@ const PhilosophySection = ({
             </div>
           </div>
         )}
+
+        {/* Call to Action */}
+        <div className="mt-12 text-center">
+          <Link to="/philosophy">
+            <Button>
+              Learn More About Our Approach
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
       </div>
     </section>
   );

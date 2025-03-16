@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import {
   Table,
@@ -17,7 +18,40 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CreditCard, Download, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CreditCard,
+  Download,
+  AlertCircle,
+  Search,
+  Filter,
+  Calendar,
+  Receipt,
+  CreditCardIcon,
+  DollarSign,
+  FileText,
+  CheckCircle2,
+  Clock,
+  ArrowUpDown,
+} from "lucide-react";
 
 interface Payment {
   id: string;
@@ -25,6 +59,8 @@ interface Payment {
   amount: number;
   status: "paid" | "pending" | "overdue";
   description: string;
+  method?: string;
+  receiptUrl?: string;
 }
 
 interface DuePayment {
@@ -33,11 +69,13 @@ interface DuePayment {
   amount: number;
   description: string;
   daysOverdue?: number;
+  category?: string;
 }
 
 interface PaymentSectionProps {
   paymentHistory?: Payment[];
   duePayments?: DuePayment[];
+  childName?: string;
 }
 
 const PaymentSection = ({
@@ -48,6 +86,8 @@ const PaymentSection = ({
       amount: 250,
       status: "paid",
       description: "May Tuition Fee",
+      method: "Credit Card",
+      receiptUrl: "#",
     },
     {
       id: "2",
@@ -55,6 +95,8 @@ const PaymentSection = ({
       amount: 250,
       status: "paid",
       description: "June Tuition Fee",
+      method: "Bank Transfer",
+      receiptUrl: "#",
     },
     {
       id: "3",
@@ -62,6 +104,8 @@ const PaymentSection = ({
       amount: 250,
       status: "paid",
       description: "July Tuition Fee",
+      method: "Credit Card",
+      receiptUrl: "#",
     },
     {
       id: "4",
@@ -69,6 +113,7 @@ const PaymentSection = ({
       amount: 275,
       status: "pending",
       description: "August Tuition Fee",
+      method: "Credit Card",
     },
   ],
   duePayments = [
@@ -77,12 +122,14 @@ const PaymentSection = ({
       dueDate: "2023-09-15",
       amount: 275,
       description: "September Tuition Fee",
+      category: "Tuition",
     },
     {
       id: "6",
       dueDate: "2023-09-30",
       amount: 50,
       description: "Art Supplies Fee",
+      category: "Supplies",
     },
     {
       id: "7",
@@ -90,18 +137,104 @@ const PaymentSection = ({
       amount: 100,
       description: "Field Trip Fee",
       daysOverdue: 7,
+      category: "Activities",
     },
   ],
+  childName = "Emma",
 }: PaymentSectionProps) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<DuePayment | null>(
+    null,
+  );
+  const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  // Filter payment history based on search and status
+  const filteredHistory = paymentHistory.filter((payment) => {
+    const matchesSearch = payment.description
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      filterStatus === "all" || payment.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Sort payment history by date
+  const sortedHistory = [...filteredHistory].sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+  });
+
+  // Calculate total paid and due amounts
+  const totalPaid = paymentHistory
+    .filter((payment) => payment.status === "paid")
+    .reduce((sum, payment) => sum + payment.amount, 0);
+
+  const totalDue = duePayments.reduce(
+    (sum, payment) => sum + payment.amount,
+    0,
+  );
+
+  // Handle payment process
+  const handlePayNow = (payment: DuePayment) => {
+    setSelectedPayment(payment);
+    setIsPaymentDialogOpen(true);
+  };
+
+  // Handle view receipt
+  const handleViewReceipt = (payment: Payment) => {
+    setSelectedReceipt(payment);
+    setIsReceiptDialogOpen(true);
+  };
+
+  // Toggle sort order
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+  };
+
   return (
-    <div className="w-full bg-white p-6 rounded-lg">
+    <div className="w-full bg-white p-6 rounded-lg shadow-sm">
       <Tabs defaultValue="due" className="w-full">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Payments</h2>
-          <TabsList>
-            <TabsTrigger value="due">Due Payments</TabsTrigger>
-            <TabsTrigger value="history">Payment History</TabsTrigger>
-          </TabsList>
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {childName}'s Payments
+            </h2>
+            <p className="text-gray-600 text-sm">
+              Manage tuition and activity fees
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-md">
+              <DollarSign className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="text-xs text-blue-700">Total Paid</p>
+                <p className="font-semibold text-blue-800">
+                  ${totalPaid.toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-md">
+              <Clock className="h-5 w-5 text-amber-500" />
+              <div>
+                <p className="text-xs text-amber-700">Total Due</p>
+                <p className="font-semibold text-amber-800">
+                  ${totalDue.toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            <TabsList className="ml-auto">
+              <TabsTrigger value="due">Due Payments</TabsTrigger>
+              <TabsTrigger value="history">Payment History</TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         <TabsContent value="due" className="space-y-4">
@@ -119,6 +252,7 @@ const PaymentSection = ({
                     <TableHeader>
                       <TableRow>
                         <TableHead>Description</TableHead>
+                        <TableHead>Category</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>Amount</TableHead>
                         <TableHead>Status</TableHead>
@@ -130,6 +264,11 @@ const PaymentSection = ({
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium">
                             {payment.description}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-gray-50">
+                              {payment.category || "Other"}
+                            </Badge>
                           </TableCell>
                           <TableCell>{payment.dueDate}</TableCell>
                           <TableCell>${payment.amount.toFixed(2)}</TableCell>
@@ -143,7 +282,10 @@ const PaymentSection = ({
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button size="sm">
+                            <Button
+                              size="sm"
+                              onClick={() => handlePayNow(payment)}
+                            >
                               <CreditCard className="mr-2 h-4 w-4" />
                               Pay Now
                             </Button>
@@ -153,6 +295,15 @@ const PaymentSection = ({
                     </TableBody>
                   </Table>
                 </CardContent>
+                <CardFooter className="flex justify-between border-t pt-4">
+                  <p className="text-sm text-gray-500">
+                    Showing {duePayments.length} upcoming payments
+                  </p>
+                  <Button variant="outline" size="sm">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Payment Schedule
+                  </Button>
+                </CardFooter>
               </Card>
 
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-start gap-3">
@@ -172,6 +323,7 @@ const PaymentSection = ({
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-10">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
                 <div className="text-center">
                   <h3 className="text-lg font-medium">No payments due</h3>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -185,56 +337,259 @@ const PaymentSection = ({
 
         <TabsContent value="history">
           <Card>
-            <CardHeader>
-              <CardTitle>Payment History</CardTitle>
-              <CardDescription>View all your previous payments</CardDescription>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <CardTitle>Payment History</CardTitle>
+                  <CardDescription>
+                    View all your previous payments
+                  </CardDescription>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search payments..."
+                      className="pl-8 w-full sm:w-[200px]"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <Select
+                    defaultValue="all"
+                    onValueChange={(value) => setFilterStatus(value)}
+                  >
+                    <SelectTrigger className="w-full sm:w-[150px]">
+                      <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4" />
+                        <SelectValue placeholder="Filter" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Description</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={toggleSortOrder}
+                        className="flex items-center gap-1 p-0 h-auto font-medium"
+                      >
+                        Date
+                        <ArrowUpDown className="h-3 w-3" />
+                      </Button>
+                    </TableHead>
                     <TableHead>Amount</TableHead>
+                    <TableHead>Method</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Receipt</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentHistory.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell className="font-medium">
-                        {payment.description}
-                      </TableCell>
-                      <TableCell>{payment.date}</TableCell>
-                      <TableCell>${payment.amount.toFixed(2)}</TableCell>
-                      <TableCell>
-                        {payment.status === "paid" && (
-                          <Badge variant="default">Paid</Badge>
-                        )}
-                        {payment.status === "pending" && (
-                          <Badge variant="secondary">Processing</Badge>
-                        )}
-                        {payment.status === "overdue" && (
-                          <Badge variant="destructive">Overdue</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {payment.status === "paid" && (
-                          <Button variant="outline" size="sm">
-                            <Download className="mr-2 h-4 w-4" />
-                            Receipt
-                          </Button>
-                        )}
+                  {sortedHistory.length > 0 ? (
+                    sortedHistory.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="font-medium">
+                          {payment.description}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(payment.date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>${payment.amount.toFixed(2)}</TableCell>
+                        <TableCell>{payment.method || "--"}</TableCell>
+                        <TableCell>
+                          {payment.status === "paid" && (
+                            <Badge variant="default">Paid</Badge>
+                          )}
+                          {payment.status === "pending" && (
+                            <Badge variant="secondary">Processing</Badge>
+                          )}
+                          {payment.status === "overdue" && (
+                            <Badge variant="destructive">Overdue</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {payment.status === "paid" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewReceipt(payment)}
+                            >
+                              <Receipt className="mr-2 h-4 w-4" />
+                              Receipt
+                            </Button>
+                          )}
+                          {payment.status === "pending" && (
+                            <Button variant="outline" size="sm">
+                              <CreditCard className="mr-2 h-4 w-4" />
+                              Complete
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center py-6 text-gray-500"
+                      >
+                        No payment records found
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
+            <CardFooter className="flex justify-between border-t pt-4">
+              <p className="text-sm text-gray-500">
+                Showing {sortedHistory.length} of {paymentHistory.length}{" "}
+                payments
+              </p>
+              <Button variant="outline" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                Export History
+              </Button>
+            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Payment Dialog */}
+      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Make a Payment</DialogTitle>
+            <DialogDescription>
+              Complete your payment for {selectedPayment?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="amount" className="text-right">
+                Amount
+              </Label>
+              <div className="col-span-3 relative">
+                <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  id="amount"
+                  value={selectedPayment?.amount.toFixed(2)}
+                  className="pl-8"
+                  readOnly
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="method" className="text-right">
+                Payment Method
+              </Label>
+              <Select defaultValue="credit-card">
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credit-card">Credit Card</SelectItem>
+                  <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="paypal">PayPal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="card-number" className="text-right">
+                Card Number
+              </Label>
+              <Input
+                id="card-number"
+                placeholder="**** **** **** ****"
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="expiry" className="text-right">
+                Expiry Date
+              </Label>
+              <Input id="expiry" placeholder="MM/YY" className="col-span-1" />
+              <Label htmlFor="cvv" className="text-right">
+                CVV
+              </Label>
+              <Input id="cvv" placeholder="***" className="col-span-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit">Process Payment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Dialog */}
+      <Dialog open={isReceiptDialogOpen} onOpenChange={setIsReceiptDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Payment Receipt</DialogTitle>
+            <DialogDescription>
+              Receipt for {selectedReceipt?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="border rounded-md p-4 space-y-4">
+            <div className="flex justify-between border-b pb-2">
+              <div className="font-bold text-lg">Ninio Kindergarten</div>
+              <div className="text-gray-500">
+                Receipt #{selectedReceipt?.id}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Date:</span>
+                <span>{selectedReceipt?.date}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Description:</span>
+                <span>{selectedReceipt?.description}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Payment Method:</span>
+                <span>{selectedReceipt?.method}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Status:</span>
+                <Badge variant="default">Paid</Badge>
+              </div>
+              <div className="flex justify-between border-t pt-2 mt-2">
+                <span className="font-bold">Total Amount:</span>
+                <span className="font-bold">
+                  ${selectedReceipt?.amount.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="w-full sm:w-auto">
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </Button>
+            <Button variant="outline" className="w-full sm:w-auto">
+              <FileText className="mr-2 h-4 w-4" />
+              Print Receipt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Facility {
   id: string;
@@ -125,9 +126,11 @@ const FacilitiesSection = ({
                 </div>
 
                 {/* This button could link to a detailed page about each facility */}
-                <Button variant="outline" className="mt-2 w-full sm:w-auto">
-                  Learn More <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                <Link to={`/facilities#${facility.id}`}>
+                  <Button variant="outline" className="mt-2 w-full sm:w-auto">
+                    Learn More <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           ))}
@@ -135,7 +138,9 @@ const FacilitiesSection = ({
 
         {/* Call to Action */}
         <div className="mt-12 text-center">
-          <Button className="px-6 py-3">Schedule a Tour</Button>
+          <Link to="/facilities">
+            <Button className="px-6 py-3">Schedule a Tour</Button>
+          </Link>
           <p className="text-sm text-gray-500 mt-4">
             Want to see our facilities in person? Schedule a tour today!
           </p>

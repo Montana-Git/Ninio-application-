@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -20,12 +20,37 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SidebarProps {
   userName?: string;
   userRole?: "parent" | "admin";
   userAvatar?: string;
 }
+
+// Logout button component
+const LogoutButton = () => {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/auth/login");
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+      onClick={handleLogout}
+    >
+      <span className="mr-3">
+        <LogOut size={20} />
+      </span>
+      Logout
+    </Button>
+  );
+};
 
 const Sidebar = ({
   userName = "Jane Doe",
@@ -52,6 +77,11 @@ const Sidebar = ({
       label: "Payments",
       path: "/dashboard/parent/payments",
     },
+    {
+      icon: <User size={20} />,
+      label: "Profile",
+      path: "/dashboard/parent/profile",
+    },
   ];
 
   const adminMenuItems = [
@@ -70,6 +100,11 @@ const Sidebar = ({
       icon: <CreditCard size={20} />,
       label: "Payments",
       path: "/dashboard/admin/payments",
+    },
+    {
+      icon: <User size={20} />,
+      label: "Profile",
+      path: "/dashboard/admin/profile",
     },
   ];
 
@@ -130,7 +165,13 @@ const Sidebar = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Link to="/settings">
+                  <Link
+                    to={
+                      userRole === "admin"
+                        ? "/dashboard/admin/profile"
+                        : "/dashboard/parent/profile"
+                    }
+                  >
                     <Button variant="ghost" className="w-full justify-start">
                       <span className="mr-3">
                         <Settings size={20} />
@@ -147,17 +188,7 @@ const Sidebar = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Link to="/">
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-                    >
-                      <span className="mr-3">
-                        <LogOut size={20} />
-                      </span>
-                      Logout
-                    </Button>
-                  </Link>
+                  <LogoutButton />
                 </TooltipTrigger>
                 <TooltipContent side="right">Logout</TooltipContent>
               </Tooltip>

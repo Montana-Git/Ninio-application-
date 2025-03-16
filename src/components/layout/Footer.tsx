@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/use-toast";
 import {
   Facebook,
   Instagram,
@@ -38,6 +40,27 @@ const Footer = ({
     youtube: "https://youtube.com",
   },
 }: FooterProps) => {
+  const [email, setEmail] = useState("");
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Here you would typically send this to your backend
+    toast({
+      title: "Subscribed!",
+      description: "You've been successfully subscribed to our newsletter",
+    });
+    setEmail("");
+  };
+
   return (
     <footer className="w-full bg-primary-50 border-t border-gray-200">
       <div className="container mx-auto px-4 py-12">
@@ -154,14 +177,21 @@ const Footer = ({
             <p className="text-gray-600 text-sm mb-4">
               Subscribe to our newsletter for updates on events and activities.
             </p>
-            <div className="flex flex-col space-y-2">
-              <input
+            <form
+              onSubmit={handleSubscribe}
+              className="flex flex-col space-y-2"
+            >
+              <Input
                 type="email"
                 placeholder="Your email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
-              <Button className="w-full">Subscribe</Button>
-            </div>
+              <Button type="submit" className="w-full">
+                Subscribe
+              </Button>
+            </form>
           </div>
         </div>
 
