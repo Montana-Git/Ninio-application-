@@ -1,13 +1,22 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import Sidebar from "@/components/dashboard/Sidebar";
 import ActivitiesManagement from "@/components/dashboard/admin/ActivitiesManagement";
 import EventsManagement from "@/components/dashboard/admin/EventsManagement";
 import PaymentManagement from "@/components/dashboard/admin/PaymentManagement";
+import ChildrenManagement from "@/components/dashboard/admin/ChildrenManagement";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Calendar, CreditCard, LayoutDashboard } from "lucide-react";
+import {
+  Activity,
+  Calendar,
+  CreditCard,
+  LayoutDashboard,
+  Users,
+} from "lucide-react";
 
 const AdminDashboard = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("overview");
 
   // Admin user information
@@ -63,11 +72,9 @@ const AdminDashboard = () => {
         <div className="p-8">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-gray-800">
-              Admin Dashboard
+              {t("admin.dashboard.title")}
             </h1>
-            <p className="text-gray-600">
-              Manage kindergarten activities, events, and payments
-            </p>
+            <p className="text-gray-600">{t("admin.dashboard.subtitle")}</p>
           </div>
 
           <Tabs
@@ -76,25 +83,29 @@ const AdminDashboard = () => {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid grid-cols-4 w-full max-w-3xl">
+            <TabsList className="grid grid-cols-5 w-full max-w-3xl">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <LayoutDashboard className="h-4 w-4" />
-                Overview
+                {t("admin.overview")}
               </TabsTrigger>
               <TabsTrigger
                 value="activities"
                 className="flex items-center gap-2"
               >
                 <Activity className="h-4 w-4" />
-                Activities
+                {t("admin.activities")}
               </TabsTrigger>
               <TabsTrigger value="events" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Events
+                {t("admin.events")}
               </TabsTrigger>
               <TabsTrigger value="payments" className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
-                Payments
+                {t("admin.payments")}
+              </TabsTrigger>
+              <TabsTrigger value="children" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                {t("admin.children")}
               </TabsTrigger>
             </TabsList>
 
@@ -229,6 +240,11 @@ const AdminDashboard = () => {
             {/* Payments Tab */}
             <TabsContent value="payments">
               <PaymentManagement />
+            </TabsContent>
+
+            {/* Children Tab */}
+            <TabsContent value="children">
+              <ChildrenManagement />
             </TabsContent>
           </Tabs>
         </div>

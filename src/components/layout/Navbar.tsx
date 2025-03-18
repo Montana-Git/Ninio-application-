@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 interface NavbarProps {
   transparent?: boolean;
@@ -24,6 +26,7 @@ interface NavbarProps {
 }
 
 const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
+  const { t } = useTranslation();
   const [isScrolled, setIsScrolled] = React.useState(false);
 
   React.useEffect(() => {
@@ -61,7 +64,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className={logoClasses}>
-          Ninio Kindergarten
+          {t("app.name")}
         </Link>
 
         {/* Desktop Navigation */}
@@ -70,12 +73,19 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
             <NavigationMenuList>
               <NavigationMenuItem>
                 <Link to="/" className={linkClasses}>
-                  Home
+                  {t("nav.home")}
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <NavigationMenuTrigger className={linkClasses}>
-                  Facilities
+                <NavigationMenuTrigger
+                  className={cn(linkClasses, "bg-transparent", {
+                    "text-foreground hover:text-primary":
+                      !transparent || isScrolled,
+                    "text-white hover:text-white/80":
+                      transparent && !isScrolled,
+                  })}
+                >
+                  {t("nav.facilities")}
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
@@ -86,11 +96,10 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                           href="/facilities"
                         >
                           <div className="mb-2 mt-4 text-lg font-medium">
-                            Our Facilities
+                            {t("home.facilities.title")}
                           </div>
                           <p className="text-sm leading-tight text-muted-foreground">
-                            Explore our modern, safe, and engaging learning
-                            environments designed for young minds.
+                            {t("home.facilities.description")}
                           </p>
                         </a>
                       </NavigationMenuLink>
@@ -113,12 +122,12 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
               </NavigationMenuItem>
               <NavigationMenuItem>
                 <Link to="/philosophy" className={linkClasses}>
-                  Philosophy
+                  {t("home.philosophy.title")}
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
                 <Link to="/programs" className={linkClasses}>
-                  Programs
+                  {t("nav.programs")}
                 </Link>
               </NavigationMenuItem>
             </NavigationMenuList>
@@ -126,6 +135,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
 
           {/* Authentication Buttons */}
           <div className="flex items-center space-x-4">
+            <LanguageSwitcher />
             {onOpenAssistant && (
               <Button
                 variant={transparent && !isScrolled ? "outline" : "secondary"}
@@ -136,26 +146,26 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                 onClick={onOpenAssistant}
               >
                 <Bot className="h-4 w-4" />
-                Assistant
+                {t("nav.assistant")}
               </Button>
             )}
             <Link to="/auth/login">
               <Button
                 variant={transparent && !isScrolled ? "outline" : "default"}
-                className={cn({
+                className={cn("font-medium", {
                   "border-white text-white hover:bg-white hover:text-foreground":
                     transparent && !isScrolled,
                 })}
               >
                 <LogIn className="mr-2 h-4 w-4" />
-                Login
+                {t("nav.login")}
               </Button>
             </Link>
             <Link to="/auth/register">
               <Button
                 variant={transparent && !isScrolled ? "secondary" : "default"}
               >
-                Register
+                {t("nav.register")}
               </Button>
             </Link>
           </div>
@@ -176,7 +186,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
           <SheetContent side="right">
             <div className="flex flex-col h-full">
               <div className="flex justify-between items-center py-4">
-                <span className="font-bold text-lg">Ninio Kindergarten</span>
+                <span className="font-bold text-lg">{t("app.name")}</span>
                 <SheetClose asChild>
                   <Button variant="ghost" size="icon">
                     <X className="h-5 w-5" />
@@ -189,7 +199,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                     to="/"
                     className="px-4 py-2 text-foreground hover:bg-muted rounded-md"
                   >
-                    Home
+                    {t("nav.home")}
                   </Link>
                 </SheetClose>
                 <SheetClose asChild>
@@ -197,7 +207,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                     to="/facilities"
                     className="px-4 py-2 text-foreground hover:bg-muted rounded-md"
                   >
-                    Facilities
+                    {t("nav.facilities")}
                   </Link>
                 </SheetClose>
                 <SheetClose asChild>
@@ -205,7 +215,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                     to="/philosophy"
                     className="px-4 py-2 text-foreground hover:bg-muted rounded-md"
                   >
-                    Philosophy
+                    {t("home.philosophy.title")}
                   </Link>
                 </SheetClose>
                 <SheetClose asChild>
@@ -213,9 +223,12 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                     to="/programs"
                     className="px-4 py-2 text-foreground hover:bg-muted rounded-md"
                   >
-                    Programs
+                    {t("nav.programs")}
                   </Link>
                 </SheetClose>
+                <div className="py-2">
+                  <LanguageSwitcher />
+                </div>
                 {onOpenAssistant && (
                   <SheetClose asChild>
                     <Button
@@ -224,7 +237,7 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                       onClick={onOpenAssistant}
                     >
                       <Bot className="h-4 w-4" />
-                      AI Assistant
+                      {t("nav.assistant")}
                     </Button>
                   </SheetClose>
                 )}
@@ -234,14 +247,14 @@ const Navbar = ({ transparent = false, onOpenAssistant }: NavbarProps) => {
                   <Link to="/auth/login" className="w-full">
                     <Button className="w-full">
                       <LogIn className="mr-2 h-4 w-4" />
-                      Login
+                      {t("nav.login")}
                     </Button>
                   </Link>
                 </SheetClose>
                 <SheetClose asChild>
                   <Link to="/auth/register" className="w-full">
                     <Button variant="outline" className="w-full">
-                      Register
+                      {t("nav.register")}
                     </Button>
                   </Link>
                 </SheetClose>

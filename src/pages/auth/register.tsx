@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -74,6 +75,7 @@ const registerSchema = z
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const RegisterPage = () => {
+  const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -147,13 +149,17 @@ const RegisterPage = () => {
         } else {
           setRegisterError("Registration failed. Please try again.");
         }
-        throw error;
+        return;
       }
 
       // Redirect to login page after successful registration
-      window.location.href = "/auth/login";
-    } catch (error) {
+      // Add a small delay to allow the user to see the success message
+      setTimeout(() => {
+        window.location.href = "/auth/login";
+      }, 1500);
+    } catch (error: any) {
       console.error("Registration error:", error);
+      setRegisterError(error?.message || "An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
     }
@@ -175,10 +181,10 @@ const RegisterPage = () => {
         <Card className="w-full">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
-              Create an Account
+              {t("auth.register.title")}
             </CardTitle>
             <CardDescription className="text-center">
-              Enter your information to register for Ninio Kindergarten
+              {t("auth.register.subtitle")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -193,7 +199,7 @@ const RegisterPage = () => {
                     name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First Name</FormLabel>
+                        <FormLabel>{t("auth.register.firstName")}</FormLabel>
                         <FormControl>
                           <Input placeholder="John" {...field} />
                         </FormControl>
@@ -206,7 +212,7 @@ const RegisterPage = () => {
                     name="lastName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last Name</FormLabel>
+                        <FormLabel>{t("auth.register.lastName")}</FormLabel>
                         <FormControl>
                           <Input placeholder="Doe" {...field} />
                         </FormControl>
@@ -221,7 +227,7 @@ const RegisterPage = () => {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>{t("auth.register.email")}</FormLabel>
                       <FormControl>
                         <Input
                           type="email"
@@ -239,7 +245,7 @@ const RegisterPage = () => {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>{t("auth.register.password")}</FormLabel>
                       <div className="relative">
                         <FormControl>
                           <Input
@@ -270,7 +276,9 @@ const RegisterPage = () => {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
+                      <FormLabel>
+                        {t("auth.register.confirmPassword")}
+                      </FormLabel>
                       <div className="relative">
                         <FormControl>
                           <Input
@@ -303,7 +311,7 @@ const RegisterPage = () => {
                   name="role"
                   render={({ field }) => (
                     <FormItem className="space-y-3">
-                      <FormLabel>I am registering as a:</FormLabel>
+                      <FormLabel>{t("auth.register.role")}</FormLabel>
                       <div className="flex flex-col space-y-2">
                         <label className="flex items-center space-x-2 cursor-pointer">
                           <input
@@ -313,7 +321,7 @@ const RegisterPage = () => {
                             checked={field.value === "parent"}
                             onChange={() => field.onChange("parent")}
                           />
-                          <span>Parent</span>
+                          <span>{t("auth.register.role.parent")}</span>
                         </label>
                         <label className="flex items-center space-x-2 cursor-pointer">
                           <input
@@ -323,7 +331,7 @@ const RegisterPage = () => {
                             checked={field.value === "admin"}
                             onChange={() => field.onChange("admin")}
                           />
-                          <span>Administrator</span>
+                          <span>{t("auth.register.role.admin")}</span>
                         </label>
                       </div>
                       <FormMessage />
@@ -338,7 +346,9 @@ const RegisterPage = () => {
                     name="childrenCount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Number of Children</FormLabel>
+                        <FormLabel>
+                          {t("auth.register.childrenCount")}
+                        </FormLabel>
                         <FormControl>
                           <select
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -370,7 +380,9 @@ const RegisterPage = () => {
                 {form.watch("role") === "parent" &&
                   form.watch("childrenCount") > 0 && (
                     <div className="space-y-4">
-                      <h3 className="font-medium">Children's Names</h3>
+                      <h3 className="font-medium">
+                        {t("auth.register.childrenNames")}
+                      </h3>
                       {Array.from({
                         length: form.watch("childrenCount") || 0,
                       }).map((_, index) => (
@@ -380,7 +392,11 @@ const RegisterPage = () => {
                           name={`childrenNames.${index}`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Child {index + 1} Name</FormLabel>
+                              <FormLabel>
+                                {t("auth.register.childName", {
+                                  number: index + 1,
+                                })}
+                              </FormLabel>
                               <FormControl>
                                 <Input
                                   placeholder={`Enter child ${index + 1} name`}
@@ -409,10 +425,7 @@ const RegisterPage = () => {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel className="text-sm font-normal">
-                          I agree to the{" "}
-                          <a href="#" className="text-primary hover:underline">
-                            terms and conditions
-                          </a>
+                          {t("auth.register.terms")}
                         </FormLabel>
                         <FormMessage />
                       </div>
@@ -428,19 +441,21 @@ const RegisterPage = () => {
                   className="w-full"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Creating Account..." : "Create Account"}
+                  {isSubmitting
+                    ? "Creating Account..."
+                    : t("auth.register.button")}
                 </Button>
               </form>
             </Form>
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-sm text-gray-600">
-              Already have an account?{" "}
+              {t("auth.register.hasAccount")}{" "}
               <Link
                 to="/auth/login"
                 className="text-primary font-medium hover:underline"
               >
-                Sign in
+                {t("auth.register.login")}
               </Link>
             </p>
           </CardFooter>

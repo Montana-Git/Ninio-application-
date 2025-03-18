@@ -5,6 +5,9 @@ import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 
+// Import i18n
+import "./i18n";
+
 import { TempoDevtools } from "tempo-devtools";
 TempoDevtools.init();
 

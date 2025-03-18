@@ -81,7 +81,7 @@ const FacilitiesSection = ({
   subtitle = "Explore our purpose-built spaces designed to nurture learning, creativity, and growth in a safe environment.",
 }: FacilitiesSectionProps) => {
   return (
-    <section className="w-full py-16 px-4 md:px-8 bg-white">
+    <section className="w-full py-20 px-4 md:px-8 bg-white">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-12">
@@ -96,7 +96,7 @@ const FacilitiesSection = ({
           {facilities.map((facility, index) => (
             <Card
               key={facility.id}
-              className="overflow-hidden border-gray-200 h-full"
+              className="overflow-hidden border-gray-200 h-full hover:shadow-lg transition-shadow duration-300"
             >
               <div className="relative h-64 w-full overflow-hidden">
                 <img
@@ -127,8 +127,12 @@ const FacilitiesSection = ({
 
                 {/* This button could link to a detailed page about each facility */}
                 <Link to={`/facilities#${facility.id}`}>
-                  <Button variant="outline" className="mt-2 w-full sm:w-auto">
-                    Learn More <ArrowRight className="ml-2 h-4 w-4" />
+                  <Button
+                    variant="outline"
+                    className="mt-2 w-full sm:w-auto group"
+                  >
+                    Learn More{" "}
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </Link>
               </CardContent>

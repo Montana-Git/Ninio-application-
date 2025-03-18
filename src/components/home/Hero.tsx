@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -10,10 +11,11 @@ interface HeroProps {
 }
 
 const Hero = ({
-  headline = "Nurturing Young Minds in a Safe and Creative Environment",
-  subheading = "At Ninio Kindergarten, we provide a stimulating educational experience that fosters creativity, curiosity, and confidence in every child.",
+  headline,
+  subheading,
   backgroundImage = "https://images.unsplash.com/photo-1587653263995-422546a7a559?w=1512&q=80",
 }: HeroProps) => {
+  const { t } = useTranslation();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
@@ -28,7 +30,7 @@ const Hero = ({
   }, [backgroundImage]);
 
   return (
-    <div className="relative w-full h-[600px] bg-gray-100 overflow-hidden">
+    <div className="relative w-full h-[650px] bg-gray-100 overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img
@@ -38,7 +40,7 @@ const Hero = ({
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageError(true)}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/40 mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/90 to-primary/50 mix-blend-multiply" />
       </div>
 
       {/* Loading state */}
@@ -51,16 +53,16 @@ const Hero = ({
       {/* Content Container */}
       <div className="relative z-10 container mx-auto px-4 h-full flex flex-col justify-center">
         <div className="max-w-2xl text-white">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-            {headline}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight animate-fade-in-up">
+            {headline || t("home.hero.title")}
           </h1>
-          <p className="text-lg md:text-xl mb-8 opacity-90 max-w-xl">
-            {subheading}
+          <p className="text-lg md:text-xl mb-8 opacity-90 max-w-xl animate-fade-in-up animation-delay-200">
+            {subheading || t("home.hero.subtitle")}
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up animation-delay-400">
             <Link to="/auth/register">
               <Button size="lg" className="font-semibold w-full sm:w-auto">
-                Register Now
+                {t("home.hero.cta")}
               </Button>
             </Link>
             <Link to="/programs">
@@ -69,7 +71,7 @@ const Hero = ({
                 size="lg"
                 className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 font-semibold w-full sm:w-auto"
               >
-                Learn More
+                {t("nav.learnMore", "Learn More")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

@@ -42,9 +42,9 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-export const useAuth = () => useContext(AuthContext);
+const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +99,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     childrenNames: string[] = [],
   ) => {
     try {
+      // First create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -117,17 +118,50 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Create user profile in public.users table
       if (authData.user) {
-        const { error: profileError } = await supabase.from("users").insert({
+        // Direct insert approach
+        const { error: insertError } = await supabase.from("users").insert({
           id: authData.user.id,
+          email,
           first_name: firstName,
           last_name: lastName,
-          email,
           role,
           children_count: childrenCount,
           children_names: childrenNames,
+          created_at: new Date().toISOString(),
         });
 
-        if (profileError) throw profileError;
+        if (insertError) {
+          console.error("Error with direct insert:", insertError);
+
+          // Try using the service role client if available
+          const serviceRoleKey =
+            import.meta.env.VITE_SUPABASE_SERVICE_KEY || "";
+          if (serviceRoleKey) {
+            const supabaseAdmin = supabase.auth.admin;
+            const { error: adminInsertError } = await supabaseAdmin
+              .from("users")
+              .insert({
+                id: authData.user.id,
+                email,
+                first_name: firstName,
+                last_name: lastName,
+                role,
+                children_count: childrenCount,
+                children_names: childrenNames,
+                created_at: new Date().toISOString(),
+              });
+
+            if (adminInsertError) {
+              throw new Error(
+                "Failed to create user profile: " + adminInsertError.message,
+              );
+            }
+          } else {
+            throw new Error(
+              "Failed to create user profile: " + insertError.message,
+            );
+          }
+        }
       }
 
       return { data: authData, error: null };
@@ -186,3 +220,5 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
+
+export { useAuth, AuthProvider };

@@ -65,7 +65,7 @@ const ProgramsSection = ({
   ],
 }: ProgramsSectionProps) => {
   return (
-    <section className="w-full py-16 bg-gray-50">
+    <section className="w-full py-20 bg-gray-50">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
@@ -81,7 +81,7 @@ const ProgramsSection = ({
           {programs.map((program) => (
             <Card
               key={program.id}
-              className={`overflow-hidden h-full transition-all duration-300 hover:shadow-lg ${program.featured ? "border-primary border-2" : ""}`}
+              className={`overflow-hidden h-full transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${program.featured ? "border-primary border-2" : ""}`}
             >
               <div className="relative h-48 w-full overflow-hidden">
                 <img

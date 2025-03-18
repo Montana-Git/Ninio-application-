@@ -68,7 +68,7 @@ const PhilosophySection = ({
   ],
 }: PhilosophySectionProps) => {
   return (
-    <section className="w-full py-16 px-4 md:px-8 bg-slate-50">
+    <section className="w-full py-20 px-4 md:px-8 bg-slate-50">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-12">
@@ -85,7 +85,7 @@ const PhilosophySection = ({
           {philosophies.map((philosophy, index) => (
             <div
               key={index}
-              className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300"
+              className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="mb-4 p-3 rounded-full bg-gray-50">

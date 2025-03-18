@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet";
 import Sidebar from "@/components/dashboard/Sidebar";
 import ChildActivities from "@/components/dashboard/parent/ChildActivities";
@@ -14,6 +15,7 @@ const ParentDashboard = ({
   userName = "Jane Doe",
   childName = "Emma",
 }: ParentDashboardProps) => {
+  const { t } = useTranslation();
   return (
     <div className="flex h-screen bg-gray-100">
       <Helmet>
@@ -28,10 +30,10 @@ const ParentDashboard = ({
         <div className="p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-800">
-              Welcome, {userName}
+              {t("parent.dashboard.welcome", { name: userName })}
             </h1>
             <p className="text-gray-600">
-              Here's what's happening with {childName} at Ninio Kindergarten
+              {t("parent.dashboard.subtitle", { childName })}
             </p>
           </div>
 

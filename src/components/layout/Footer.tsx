@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ const Footer = ({
     youtube: "https://youtube.com",
   },
 }: FooterProps) => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
 
   const handleSubscribe = (e: React.FormEvent) => {
@@ -71,7 +73,7 @@ const Footer = ({
               <Link to="/" className="flex items-center">
                 <img
                   src={logoSrc}
-                  alt="Ninio Kindergarten"
+                  alt={t("app.name")}
                   className="h-12 w-auto"
                   onError={(e) => {
                     e.currentTarget.src =
@@ -82,17 +84,14 @@ const Footer = ({
                   Ninio
                 </span>
               </Link>
-              <p className="text-gray-600 text-sm">
-                Providing quality early childhood education and care in a
-                nurturing environment where children can learn, play, and grow.
-              </p>
+              <p className="text-gray-600 text-sm">{t("app.tagline")}</p>
             </div>
           </div>
 
           {/* Quick Links */}
           <div className="col-span-1">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">
-              Quick Links
+              {t("nav.quickLinks", "Quick Links")}
             </h3>
             <ul className="space-y-2">
               <li>
@@ -100,7 +99,7 @@ const Footer = ({
                   to="/"
                   className="text-gray-600 hover:text-primary transition-colors"
                 >
-                  Home
+                  {t("nav.home")}
                 </Link>
               </li>
               <li>
@@ -108,7 +107,7 @@ const Footer = ({
                   to="/facilities"
                   className="text-gray-600 hover:text-primary transition-colors"
                 >
-                  Our Facilities
+                  {t("nav.facilities")}
                 </Link>
               </li>
               <li>
@@ -116,7 +115,7 @@ const Footer = ({
                   to="/philosophy"
                   className="text-gray-600 hover:text-primary transition-colors"
                 >
-                  Teaching Philosophy
+                  {t("home.philosophy.title")}
                 </Link>
               </li>
               <li>
@@ -124,7 +123,7 @@ const Footer = ({
                   to="/programs"
                   className="text-gray-600 hover:text-primary transition-colors"
                 >
-                  Programs
+                  {t("nav.programs")}
                 </Link>
               </li>
               <li>
@@ -132,7 +131,7 @@ const Footer = ({
                   to="/auth/login"
                   className="text-gray-600 hover:text-primary transition-colors"
                 >
-                  Parent Login
+                  {t("nav.login")}
                 </Link>
               </li>
             </ul>
@@ -141,7 +140,7 @@ const Footer = ({
           {/* Contact Information */}
           <div className="col-span-1">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">
-              Contact Us
+              {t("nav.contact")}
             </h3>
             <ul className="space-y-3">
               <li className="flex items-start">
@@ -172,10 +171,13 @@ const Footer = ({
           {/* Newsletter Signup */}
           <div className="col-span-1">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">
-              Stay Updated
+              {t("footer.stayUpdated", "Stay Updated")}
             </h3>
             <p className="text-gray-600 text-sm mb-4">
-              Subscribe to our newsletter for updates on events and activities.
+              {t(
+                "footer.subscribeText",
+                "Subscribe to our newsletter for updates on events and activities.",
+              )}
             </p>
             <form
               onSubmit={handleSubscribe}
@@ -183,13 +185,13 @@ const Footer = ({
             >
               <Input
                 type="email"
-                placeholder="Your email address"
+                placeholder={t("footer.emailPlaceholder", "Your email address")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
               <Button type="submit" className="w-full">
-                Subscribe
+                {t("footer.subscribe", "Subscribe")}
               </Button>
             </form>
           </div>
@@ -242,12 +244,13 @@ const Footer = ({
             </div>
             <div className="text-gray-500 text-sm">
               <p>
-                © {new Date().getFullYear()} Ninio Kindergarten. All rights
-                reserved.
+                © {new Date().getFullYear()} {t("app.name")}.{" "}
+                {t("footer.allRightsReserved", "All rights reserved.")}
               </p>
               <p className="mt-1 flex items-center justify-center md:justify-end">
-                Made with <Heart className="h-4 w-4 text-red-500 mx-1" /> for
-                little learners
+                {t("footer.madeWith", "Made with")}{" "}
+                <Heart className="h-4 w-4 text-red-500 mx-1" />{" "}
+                {t("footer.forLittleLearners", "for little learners")}
               </p>
             </div>
           </div>
