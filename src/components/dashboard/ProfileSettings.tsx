@@ -15,8 +15,17 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Settings, Lock, Mail } from "lucide-react";
+import { User, Settings, Lock, Mail, Globe } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { useTranslation } from "react-i18next";
+import { changeLanguage, getCurrentLanguage } from "@/i18n";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const profileFormSchema = z.object({
   firstName: z
@@ -51,6 +60,7 @@ const notificationFormSchema = z.object({
   activityUpdates: z.boolean().default(true),
   paymentReminders: z.boolean().default(true),
   eventReminders: z.boolean().default(true),
+  language: z.string().default("en"),
 });
 
 interface ProfileSettingsProps {
@@ -59,8 +69,10 @@ interface ProfileSettingsProps {
 
 const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const [currentLanguage, setCurrentLanguage] = useState(getCurrentLanguage());
 
   // Fetch user preferences on component mount
   React.useEffect(() => {
@@ -73,12 +85,19 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
             activityUpdates: data.activity_updates,
             paymentReminders: data.payment_reminders,
             eventReminders: data.event_reminders,
+            language: data.language || currentLanguage,
           });
+
+          // Set the language if it exists in preferences
+          if (data.language && data.language !== currentLanguage) {
+            changeLanguage(data.language);
+            setCurrentLanguage(data.language);
+          }
         }
       };
       fetchPreferences();
     }
-  }, [user]);
+  }, [user, currentLanguage]);
 
   const profileForm = useForm({
     resolver: zodResolver(profileFormSchema),
@@ -106,6 +125,7 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
       activityUpdates: true,
       paymentReminders: true,
       eventReminders: true,
+      language: currentLanguage,
     },
   });
 
@@ -173,11 +193,18 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
     try {
       if (!user) throw new Error("User not found");
 
+      // Update language if changed
+      if (data.language !== currentLanguage) {
+        changeLanguage(data.language);
+        setCurrentLanguage(data.language);
+      }
+
       const { error } = await updateUserPreferences(user.id, {
         email_notifications: data.emailNotifications,
         activity_updates: data.activityUpdates,
         payment_reminders: data.paymentReminders,
         event_reminders: data.eventReminders,
+        language: data.language,
       });
 
       if (error) throw error;
@@ -215,21 +242,25 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
+        <TabsList className="grid grid-cols-4 w-full max-w-md">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            Profile
+            {t("profile.tabs.profile", "Profile")}
           </TabsTrigger>
           <TabsTrigger value="security" className="flex items-center gap-2">
             <Lock className="h-4 w-4" />
-            Security
+            {t("profile.tabs.security", "Security")}
           </TabsTrigger>
           <TabsTrigger
             value="notifications"
             className="flex items-center gap-2"
           >
             <Mail className="h-4 w-4" />
-            Notifications
+            {t("profile.tabs.notifications", "Notifications")}
+          </TabsTrigger>
+          <TabsTrigger value="language" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            {t("profile.tabs.language", "Language")}
           </TabsTrigger>
         </TabsList>
 
@@ -431,7 +462,9 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
         <TabsContent value="notifications" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
+              <CardTitle>
+                {t("profile.notifications.title", "Notification Preferences")}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <form
@@ -445,10 +478,16 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
                         htmlFor="emailNotifications"
                         className="font-medium"
                       >
-                        Email Notifications
+                        {t(
+                          "profile.notifications.email",
+                          "Email Notifications",
+                        )}
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Receive email notifications
+                        {t(
+                          "profile.notifications.emailDesc",
+                          "Receive email notifications",
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -463,10 +502,16 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="activityUpdates" className="font-medium">
-                        Activity Updates
+                        {t(
+                          "profile.notifications.activity",
+                          "Activity Updates",
+                        )}
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Receive updates about your child's activities
+                        {t(
+                          "profile.notifications.activityDesc",
+                          "Receive updates about your child's activities",
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -481,10 +526,16 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="paymentReminders" className="font-medium">
-                        Payment Reminders
+                        {t(
+                          "profile.notifications.payment",
+                          "Payment Reminders",
+                        )}
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Receive reminders about upcoming payments
+                        {t(
+                          "profile.notifications.paymentDesc",
+                          "Receive reminders about upcoming payments",
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -499,10 +550,13 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="eventReminders" className="font-medium">
-                        Event Reminders
+                        {t("profile.notifications.event", "Event Reminders")}
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Receive reminders about upcoming events
+                        {t(
+                          "profile.notifications.eventDesc",
+                          "Receive reminders about upcoming events",
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -517,7 +571,84 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
 
                 <div className="flex justify-end">
                   <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Saving..." : "Save Preferences"}
+                    {isLoading
+                      ? t("common.saving", "Saving...")
+                      : t("common.savePreferences", "Save Preferences")}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Language Tab */}
+        <TabsContent value="language" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {t("profile.language.title", "Language Settings")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={notificationForm.handleSubmit(onNotificationSubmit)}
+                className="space-y-6"
+              >
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="language" className="font-medium">
+                      {t("profile.language.select", "Select Language")}
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {t(
+                        "profile.language.selectDesc",
+                        "Choose your preferred language for the application",
+                      )}
+                    </p>
+
+                    <Select
+                      value={notificationForm.watch("language")}
+                      onValueChange={(value) => {
+                        notificationForm.setValue("language", value);
+                      }}
+                    >
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue
+                          placeholder={t(
+                            "profile.language.selectPlaceholder",
+                            "Select a language",
+                          )}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">
+                          <div className="flex items-center gap-2">
+                            <span>🇬🇧</span>
+                            <span>English</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="fr">
+                          <div className="flex items-center gap-2">
+                            <span>🇫🇷</span>
+                            <span>Français</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="ar">
+                          <div className="flex items-center gap-2">
+                            <span>🇸🇦</span>
+                            <span>العربية</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading
+                      ? t("common.saving", "Saving...")
+                      : t("common.saveLanguage", "Save Language Preference")}
                   </Button>
                 </div>
               </form>

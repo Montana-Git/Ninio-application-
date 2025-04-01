@@ -247,19 +247,19 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
   };
 
   return (
-    <div className="w-full p-6 bg-white rounded-lg shadow-sm">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">
+    <div className="w-full p-4 sm:p-6 bg-white rounded-lg shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
           {t("admin.children.title")}
         </h2>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
+            <Button className="flex items-center gap-2 w-full sm:w-auto">
               <PlusCircle className="h-4 w-4" />
               {t("admin.children.add")}
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
             <DialogHeader>
               <DialogTitle>{t("admin.children.add")}</DialogTitle>
               <DialogDescription>
@@ -271,7 +271,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
                 onSubmit={form.handleSubmit(handleAddChild)}
                 className="space-y-4"
               >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="firstName"
@@ -299,7 +299,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="dateOfBirth"
@@ -408,128 +408,135 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
         </div>
       </div>
 
-      <Table>
-        <TableCaption>
-          List of children enrolled in the kindergarten
-        </TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Child</TableHead>
-            <TableHead>Age</TableHead>
-            <TableHead>Parent</TableHead>
-            <TableHead>Allergies</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredChildren.length > 0 ? (
-            filteredChildren.map((child) => (
-              <TableRow key={child.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-3">
-                    {child.avatarUrl && (
-                      <img
-                        src={child.avatarUrl}
-                        alt={`${child.firstName} ${child.lastName}`}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                    )}
-                    <div>
-                      <div>{`${child.firstName} ${child.lastName}`}</div>
-                      <div className="text-xs text-gray-500">
-                        {child.ageGroup}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableCaption>
+            List of children enrolled in the kindergarten
+          </TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Child</TableHead>
+              <TableHead className="hidden md:table-cell">Age</TableHead>
+              <TableHead className="hidden sm:table-cell">Parent</TableHead>
+              <TableHead className="hidden lg:table-cell">Allergies</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredChildren.length > 0 ? (
+              filteredChildren.map((child) => (
+                <TableRow key={child.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-3">
+                      {child.avatarUrl && (
+                        <img
+                          src={child.avatarUrl}
+                          alt={`${child.firstName} ${child.lastName}`}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      )}
+                      <div>
+                        <div>{`${child.firstName} ${child.lastName}`}</div>
+                        <div className="text-xs text-gray-500">
+                          {child.ageGroup}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5 text-gray-500" />
-                    <span>{formatDate(child.dateOfBirth)}</span>
-                    <span className="text-xs text-gray-500 ml-1">
-                      ({calculateAge(child.dateOfBirth)} years)
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell>{child.parentName}</TableCell>
-                <TableCell>
-                  {child.allergies && child.allergies !== "None" ? (
-                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      {child.allergies}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                      <span>{formatDate(child.dateOfBirth)}</span>
+                      <span className="text-xs text-gray-500 ml-1">
+                        ({calculateAge(child.dateOfBirth)} years)
+                      </span>
                     </div>
-                  ) : (
-                    <span className="text-gray-500">None</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openViewDialog(child)}
-                          >
-                            <Info className="h-4 w-4 text-gray-500" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>View details</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(child)}
-                          >
-                            <Edit className="h-4 w-4 text-blue-500" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Edit child</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openDeleteDialog(child)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Delete child</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {child.parentName}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {child.allergies && child.allergies !== "None" ? (
+                      <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        {child.allergies}
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">None</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openViewDialog(child)}
+                            >
+                              <Info className="h-4 w-4 text-gray-500" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View details</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(child)}
+                            >
+                              <Edit className="h-4 w-4 text-blue-500" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Edit child</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openDeleteDialog(child)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Delete child</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="text-center py-6 text-gray-500"
+                >
+                  {searchTerm
+                    ? "No children found matching your search."
+                    : t("admin.children.noChildren")}
                 </TableCell>
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center py-6 text-gray-500">
-                {searchTerm
-                  ? "No children found matching your search."
-                  : t("admin.children.noChildren")}
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* View Child Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
           <DialogHeader>
             <DialogTitle>Child Details</DialogTitle>
           </DialogHeader>
@@ -553,7 +560,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <h4 className="text-sm font-medium text-gray-500">
                     Date of Birth
@@ -605,7 +612,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
 
       {/* Edit Child Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
           <DialogHeader>
             <DialogTitle>Edit Child</DialogTitle>
             <DialogDescription>
@@ -617,7 +624,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
               onSubmit={form.handleSubmit(handleEditChild)}
               className="space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="firstName"
@@ -645,7 +652,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="dateOfBirth"
@@ -738,7 +745,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>

@@ -107,23 +107,23 @@ const ChildActivities = ({
   };
 
   return (
-    <div className="w-full bg-white p-6 rounded-xl">
+    <div className="w-full bg-white p-4 sm:p-6 rounded-xl">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
           {childName}'s Activities
         </h2>
-        <p className="text-gray-600">
+        <p className="text-sm sm:text-base text-gray-600">
           View your child's recent and upcoming activities
         </p>
       </div>
 
       {/* Upcoming Activities */}
       <div className="mb-8">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">
           Upcoming Activities
         </h3>
         {upcomingActivities.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {upcomingActivities.map((activity) => (
               <ActivityCard
                 key={activity.id}
@@ -134,7 +134,7 @@ const ChildActivities = ({
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 italic">
+          <p className="text-gray-500 italic text-sm sm:text-base">
             No upcoming activities scheduled
           </p>
         )}
@@ -142,11 +142,11 @@ const ChildActivities = ({
 
       {/* Recent Activities */}
       <div>
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">
           Recent Activities
         </h3>
         {recentActivities.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {recentActivities.map((activity) => (
               <ActivityCard
                 key={activity.id}
@@ -157,7 +157,7 @@ const ChildActivities = ({
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 italic">
+          <p className="text-gray-500 italic text-sm sm:text-base">
             No recent activities to display
           </p>
         )}
@@ -182,7 +182,7 @@ const ActivityCard = ({
 
   return (
     <Card className="overflow-hidden h-full border-gray-200">
-      <div className="relative h-48 w-full overflow-hidden">
+      <div className="relative h-36 sm:h-48 w-full overflow-hidden">
         <img
           src={imageUrl}
           alt={title}
@@ -195,27 +195,29 @@ const ActivityCard = ({
           {category}
         </Badge>
       </div>
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
+      <CardHeader className="p-3 sm:p-6">
+        <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
         <CardDescription className="flex items-center gap-1 text-xs">
           <Calendar className="h-3.5 w-3.5" />
           {formatDate(date)}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <p className="text-sm text-gray-600 mb-3">{description}</p>
+      <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+        <p className="text-xs sm:text-sm text-gray-600 mb-3 line-clamp-3">
+          {description}
+        </p>
         <div className="flex flex-col space-y-1.5">
           <div className="flex items-center text-xs text-gray-500">
-            <Clock className="h-3.5 w-3.5 mr-1.5" />
-            <span>{time}</span>
+            <Clock className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
+            <span className="truncate">{time}</span>
           </div>
           <div className="flex items-center text-xs text-gray-500">
-            <MapPin className="h-3.5 w-3.5 mr-1.5" />
-            <span>{location}</span>
+            <MapPin className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
+            <span className="truncate">{location}</span>
           </div>
         </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="p-3 sm:p-6 pt-0 sm:pt-0">
         {isUpcoming && (
           <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
             Add to calendar

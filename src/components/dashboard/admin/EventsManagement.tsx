@@ -163,17 +163,17 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
   };
 
   return (
-    <div className="w-full p-6 bg-white rounded-lg shadow-sm">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Events Management</h2>
+    <div className="w-full p-4 sm:p-6 bg-white rounded-lg shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold">Events Management</h2>
         <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
+            <Button className="flex items-center gap-2 w-full sm:w-auto">
               <PlusCircle className="h-4 w-4" />
               Add New Event
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
             <DialogHeader>
               <DialogTitle>Add New Event</DialogTitle>
             </DialogHeader>
@@ -205,7 +205,7 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        className="rounded-md border"
+                        className="rounded-md border mx-auto w-full max-w-[350px]"
                       />
                       <FormMessage />
                     </FormItem>
@@ -253,8 +253,10 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                     </FormItem>
                   )}
                 />
-                <DialogFooter>
-                  <Button type="submit">Save Event</Button>
+                <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                  <Button type="submit" className="w-full sm:w-auto">
+                    Save Event
+                  </Button>
                 </DialogFooter>
               </form>
             </Form>
@@ -262,9 +264,9 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar View */}
-        <div className="md:col-span-1 bg-gray-50 p-4 rounded-lg">
+        <div className="lg:col-span-1 bg-gray-50 p-4 rounded-lg">
           <div className="mb-4">
             <h3 className="text-lg font-medium flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
@@ -275,12 +277,12 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
             mode="single"
             selected={selectedDate}
             onSelect={setSelectedDate}
-            className="rounded-md border"
+            className="rounded-md border mx-auto w-full max-w-[350px]"
           />
         </div>
 
         {/* Events List */}
-        <div className="md:col-span-2">
+        <div className="lg:col-span-2">
           <div className="mb-4">
             <h3 className="text-lg font-medium">
               {selectedDate ? (
@@ -292,43 +294,59 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
           </div>
 
           {eventsForSelectedDate.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {eventsForSelectedDate.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-medium">{event.title}</TableCell>
-                    <TableCell>{event.time}</TableCell>
-                    <TableCell>{event.location}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(event)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteEvent(event.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead className="hidden sm:table-cell">Time</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Location
+                    </TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {eventsForSelectedDate.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell className="font-medium">
+                        <div>{event.title}</div>
+                        <div className="sm:hidden text-xs text-gray-500 mt-1">
+                          {event.time}
+                        </div>
+                        <div className="md:hidden text-xs text-gray-500 mt-1">
+                          {event.location}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {event.time}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {event.location}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(event)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteEvent(event.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
               <p className="text-gray-500">No events scheduled for this date</p>
@@ -346,7 +364,7 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
 
       {/* Edit Event Dialog */}
       <Dialog open={isEditEventOpen} onOpenChange={setIsEditEventOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
           </DialogHeader>
@@ -378,7 +396,7 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
-                      className="rounded-md border"
+                      className="rounded-md border mx-auto w-full max-w-[350px]"
                     />
                     <FormMessage />
                   </FormItem>
@@ -423,8 +441,10 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                   </FormItem>
                 )}
               />
-              <DialogFooter>
-                <Button type="submit">Update Event</Button>
+              <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                <Button type="submit" className="w-full sm:w-auto">
+                  Update Event
+                </Button>
               </DialogFooter>
             </form>
           </Form>

@@ -3,6 +3,7 @@ import { useRoutes, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./components/home";
 import routes from "tempo-routes";
 import { useAuth } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 
 // Lazy load pages for better performance
 const LoginPage = lazy(() => import("./pages/auth/login"));
@@ -51,68 +52,70 @@ const ProtectedRoute = ({
 
 function App() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-screen w-screen items-center justify-center">
-          <p>Loading...</p>
-        </div>
-      }
-    >
-      <>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/auth/login" element={<LoginPage />} />
-          <Route path="/auth/register" element={<RegisterPage />} />
+    <NotificationProvider>
+      <Suspense
+        fallback={
+          <div className="flex h-screen w-screen items-center justify-center">
+            <p>Loading...</p>
+          </div>
+        }
+      >
+        <>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/auth/login" element={<LoginPage />} />
+            <Route path="/auth/register" element={<RegisterPage />} />
 
-          {/* Protected parent routes */}
-          <Route
-            path="/dashboard/parent"
-            element={
-              <ProtectedRoute requiredRole="parent">
-                <ParentDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/parent/profile"
-            element={
-              <ProtectedRoute requiredRole="parent">
-                <ParentProfilePage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected parent routes */}
+            <Route
+              path="/dashboard/parent"
+              element={
+                <ProtectedRoute requiredRole="parent">
+                  <ParentDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/parent/profile"
+              element={
+                <ProtectedRoute requiredRole="parent">
+                  <ParentProfilePage />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Protected admin routes */}
-          <Route
-            path="/dashboard/admin"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/admin/profile"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminProfilePage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected admin routes */}
+            <Route
+              path="/dashboard/admin"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/admin/profile"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminProfilePage />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route path="/programs" element={<ProgramsPage />} />
+            <Route path="/programs" element={<ProgramsPage />} />
 
-          {/* Add the tempo route before any catch-all route */}
-          {import.meta.env.VITE_TEMPO === "true" && (
-            <Route path="/tempobook/*" />
-          )}
+            {/* Add the tempo route before any catch-all route */}
+            {import.meta.env.VITE_TEMPO === "true" && (
+              <Route path="/tempobook/*" />
+            )}
 
-          {/* Redirect to login by default */}
-          <Route path="*" element={<Navigate to="/auth/login" replace />} />
-        </Routes>
-        {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
-      </>
-    </Suspense>
+            {/* Redirect to login by default */}
+            <Route path="*" element={<Navigate to="/auth/login" replace />} />
+          </Routes>
+          {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+        </>
+      </Suspense>
+    </NotificationProvider>
   );
 }
 

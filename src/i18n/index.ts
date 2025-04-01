@@ -26,6 +26,24 @@ i18n
     interpolation: {
       escapeValue: false,
     },
+    detection: {
+      order: ["localStorage", "navigator"],
+      caches: ["localStorage"],
+    },
+    react: {
+      useSuspense: true,
+    },
   });
+
+// Function to change language
+export const changeLanguage = (lng: string) => {
+  i18n.changeLanguage(lng);
+  localStorage.setItem("i18nextLng", lng);
+};
+
+// Function to get current language
+export const getCurrentLanguage = () => {
+  return i18n.language || "fr";
+};
 
 export default i18n;
