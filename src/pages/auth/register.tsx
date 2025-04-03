@@ -34,11 +34,7 @@ const registerSchema = z
     email: z.string().email("Invalid email address"),
     password: z
       .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain uppercase, lowercase and number",
-      ),
+      .min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
     role: z.enum(["parent", "admin"]),
     childrenCount: z.number().min(0).max(10).optional(),
@@ -306,52 +302,60 @@ const RegisterPage = () => {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem className="space-y-3">
-                      <FormLabel>{t("auth.register.role")}</FormLabel>
-                      <div className="flex flex-col space-y-2">
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            className="form-radio h-4 w-4 text-primary"
-                            value="parent"
-                            checked={field.value === "parent"}
-                            onChange={() => field.onChange("parent")}
-                          />
-                          <span>{t("auth.register.role.parent")}</span>
-                        </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            className="form-radio h-4 w-4 text-primary"
-                            value="admin"
-                            checked={field.value === "admin"}
-                            onChange={() => field.onChange("admin")}
-                          />
-                          <span>{t("auth.register.role.admin")}</span>
-                        </label>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-4">
+                  <FormLabel>{t("auth.register.role")}</FormLabel>
+                  <div className="flex flex-col space-y-2">
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <div className="flex items-center space-x-2">
+                          <FormControl>
+                            <input
+                              type="radio"
+                              checked={field.value === "parent"}
+                              onChange={() => field.onChange("parent")}
+                              className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">
+                            {t("auth.register.roleParent")}
+                          </FormLabel>
+                        </div>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <div className="flex items-center space-x-2">
+                          <FormControl>
+                            <input
+                              type="radio"
+                              checked={field.value === "admin"}
+                              onChange={() => field.onChange("admin")}
+                              className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">
+                            {t("auth.register.roleAdmin")}
+                          </FormLabel>
+                        </div>
+                      )}
+                    />
+                  </div>
+                </div>
 
-                {/* Children Count - Only show for parents */}
                 {form.watch("role") === "parent" && (
                   <FormField
                     control={form.control}
                     name="childrenCount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          {t("auth.register.childrenCount")}
-                        </FormLabel>
+                        <FormLabel>{t("auth.register.childrenCount")}</FormLabel>
                         <FormControl>
                           <select
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                             value={field.value}
                             onChange={(e) => {
                               const value = parseInt(e.target.value);
@@ -359,15 +363,12 @@ const RegisterPage = () => {
                               setChildrenCount(value);
                             }}
                           >
-                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                              <option key={num} value={num}>
-                                {num === 0
-                                  ? "No children"
-                                  : num === 1
-                                    ? "1 child"
-                                    : `${num} children`}
-                              </option>
-                            ))}
+                            <option value="0">No children</option>
+                            <option value="1">1 child</option>
+                            <option value="2">2 children</option>
+                            <option value="3">3 children</option>
+                            <option value="4">4 children</option>
+                            <option value="5">5 children</option>
                           </select>
                         </FormControl>
                         <FormMessage />
@@ -376,41 +377,29 @@ const RegisterPage = () => {
                   />
                 )}
 
-                {/* Children Names - Only show if childrenCount > 0 */}
                 {form.watch("role") === "parent" &&
-                  form.watch("childrenCount") > 0 && (
-                    <div className="space-y-4">
-                      <h3 className="font-medium">
-                        {t("auth.register.childrenNames")}
-                      </h3>
-                      {Array.from({
-                        length: form.watch("childrenCount") || 0,
-                      }).map((_, index) => (
-                        <FormField
-                          key={index}
-                          control={form.control}
-                          name={`childrenNames.${index}`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>
-                                {t("auth.register.childName", {
-                                  number: index + 1,
-                                })}
-                              </FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder={`Enter child ${index + 1} name`}
-                                  {...field}
-                                  value={field.value || ""}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  form.watch("childrenCount") > 0 &&
+                  childrenNames.map((_, index) => (
+                    <FormField
+                      key={index}
+                      control={form.control}
+                      name={`childrenNames.${index}`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("auth.register.childName")} {index + 1}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={`Child ${index + 1} name`}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
 
                 <FormField
                   control={form.control}
@@ -424,8 +413,8 @@ const RegisterPage = () => {
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel className="text-sm font-normal">
-                          {t("auth.register.terms")}
+                        <FormLabel>
+                          {t("auth.register.termsAndConditions")}
                         </FormLabel>
                         <FormMessage />
                       </div>
@@ -434,30 +423,33 @@ const RegisterPage = () => {
                 />
 
                 {registerError && (
-                  <p className="text-sm text-red-500 mb-2">{registerError}</p>
+                  <div className="text-red-500 text-sm">{registerError}</div>
                 )}
+
                 <Button
                   type="submit"
                   className="w-full"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting
-                    ? "Creating Account..."
-                    : t("auth.register.button")}
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      {t("auth.register.submitting")}
+                    </div>
+                  ) : (
+                    t("auth.register.submit")
+                  )}
                 </Button>
               </form>
             </Form>
           </CardContent>
           <CardFooter className="flex justify-center">
-            <p className="text-sm text-gray-600">
-              {t("auth.register.hasAccount")}{" "}
-              <Link
-                to="/auth/login"
-                className="text-primary font-medium hover:underline"
-              >
+            <div className="text-sm text-gray-600">
+              {t("auth.register.alreadyHaveAccount")}{" "}
+              <Link to="/auth/login" className="text-primary hover:underline">
                 {t("auth.register.login")}
               </Link>
-            </p>
+            </div>
           </CardFooter>
         </Card>
       </div>

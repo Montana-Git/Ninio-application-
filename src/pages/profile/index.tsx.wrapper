@@ -1,0 +1,13 @@
+import React from 'react';
+import ProfileLayout from '@/components/layout/ProfileLayout';
+
+const ProfilePage = () => {
+  return (
+    <ProfileLayout>
+      {/* Import and render the profile component */}
+      <div id="profile-content"></div>
+    </ProfileLayout>
+  );
+};
+
+export default ProfilePage;
