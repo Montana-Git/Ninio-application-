@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -27,7 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import {
@@ -45,13 +44,15 @@ import {
   Filter,
   Calendar,
   Receipt,
-  CreditCardIcon,
   DollarSign,
   FileText,
   CheckCircle2,
   Clock,
   ArrowUpDown,
+  Loader2,
 } from "lucide-react";
+import { getPayments, getParentPayments, addPayment } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Payment {
   id: string;
@@ -79,67 +80,8 @@ interface PaymentSectionProps {
 }
 
 const PaymentSection = ({
-  paymentHistory = [
-    {
-      id: "1",
-      date: "2023-05-15",
-      amount: 250,
-      status: "paid",
-      description: "May Tuition Fee",
-      method: "Credit Card",
-      receiptUrl: "#",
-    },
-    {
-      id: "2",
-      date: "2023-06-15",
-      amount: 250,
-      status: "paid",
-      description: "June Tuition Fee",
-      method: "Bank Transfer",
-      receiptUrl: "#",
-    },
-    {
-      id: "3",
-      date: "2023-07-15",
-      amount: 250,
-      status: "paid",
-      description: "July Tuition Fee",
-      method: "Credit Card",
-      receiptUrl: "#",
-    },
-    {
-      id: "4",
-      date: "2023-08-15",
-      amount: 275,
-      status: "pending",
-      description: "August Tuition Fee",
-      method: "Credit Card",
-    },
-  ],
-  duePayments = [
-    {
-      id: "5",
-      dueDate: "2023-09-15",
-      amount: 275,
-      description: "September Tuition Fee",
-      category: "Tuition",
-    },
-    {
-      id: "6",
-      dueDate: "2023-09-30",
-      amount: 50,
-      description: "Art Supplies Fee",
-      category: "Supplies",
-    },
-    {
-      id: "7",
-      dueDate: "2023-08-30",
-      amount: 100,
-      description: "Field Trip Fee",
-      daysOverdue: 7,
-      category: "Activities",
-    },
-  ],
+  paymentHistory: propPaymentHistory,
+  duePayments: propDuePayments,
   childName = "Emma",
 }: PaymentSectionProps) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -151,6 +93,164 @@ const PaymentSection = ({
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
+  const [duePayments, setDuePayments] = useState<DuePayment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("credit-card");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      // If payment history is provided as props, use it
+      if (propPaymentHistory && propPaymentHistory.length > 0) {
+        setPaymentHistory(propPaymentHistory);
+      } else {
+        setIsLoading(true);
+        setError(null);
+        try {
+          // Get parent payments from Supabase
+          const parentId = user?.id;
+          if (parentId) {
+            const { data, error } = await getParentPayments(parentId);
+            if (error) throw new Error(error.message);
+            
+            if (data && data.length > 0) {
+              // Transform the data to match our Payment interface
+              const formattedPayments = data.map((item: any) => ({
+                id: item.id,
+                date: item.date,
+                amount: item.amount,
+                status: item.status || "paid",
+                description: item.description,
+                method: item.payment_method,
+                receiptUrl: item.receipt_url,
+              }));
+              setPaymentHistory(formattedPayments);
+            } else {
+              // Use default payment history if no data is returned
+              setPaymentHistory([
+                {
+                  id: "1",
+                  date: "2023-05-15",
+                  amount: 250,
+                  status: "paid",
+                  description: "May Tuition Fee",
+                  method: "Credit Card",
+                  receiptUrl: "#",
+                },
+                {
+                  id: "2",
+                  date: "2023-06-15",
+                  amount: 250,
+                  status: "paid",
+                  description: "June Tuition Fee",
+                  method: "Bank Transfer",
+                  receiptUrl: "#",
+                },
+                {
+                  id: "3",
+                  date: "2023-07-15",
+                  amount: 250,
+                  status: "paid",
+                  description: "July Tuition Fee",
+                  method: "Credit Card",
+                  receiptUrl: "#",
+                },
+                {
+                  id: "4",
+                  date: "2023-08-15",
+                  amount: 275,
+                  status: "pending",
+                  description: "August Tuition Fee",
+                  method: "Credit Card",
+                },
+              ]);
+            }
+          }
+        } catch (err: any) {
+          console.error("Error fetching payment history:", err);
+          setError("Failed to load payment history. Please try again later.");
+          // Fallback to default payment history
+          setPaymentHistory([
+            {
+              id: "1",
+              date: "2023-05-15",
+              amount: 250,
+              status: "paid",
+              description: "May Tuition Fee",
+              method: "Credit Card",
+              receiptUrl: "#",
+            },
+            {
+              id: "2",
+              date: "2023-06-15",
+              amount: 250,
+              status: "paid",
+              description: "June Tuition Fee",
+              method: "Bank Transfer",
+              receiptUrl: "#",
+            },
+          ]);
+        }
+      }
+
+      // If due payments are provided as props, use them
+      if (propDuePayments && propDuePayments.length > 0) {
+        setDuePayments(propDuePayments);
+      } else {
+        try {
+          // Get due payments from Supabase
+          // This would typically be a separate API call to get upcoming payments
+          // For now, we'll use default due payments
+          setDuePayments([
+            {
+              id: "5",
+              dueDate: "2023-09-15",
+              amount: 275,
+              description: "September Tuition Fee",
+              category: "Tuition",
+            },
+            {
+              id: "6",
+              dueDate: "2023-09-30",
+              amount: 50,
+              description: "Art Supplies Fee",
+              category: "Supplies",
+            },
+            {
+              id: "7",
+              dueDate: "2023-08-30",
+              amount: 100,
+              description: "Field Trip Fee",
+              daysOverdue: 7,
+              category: "Activities",
+            },
+          ]);
+        } catch (err: any) {
+          console.error("Error fetching due payments:", err);
+          // Fallback to default due payments
+          setDuePayments([
+            {
+              id: "5",
+              dueDate: "2023-09-15",
+              amount: 275,
+              description: "September Tuition Fee",
+              category: "Tuition",
+            },
+          ]);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchPayments();
+  }, [propPaymentHistory, propDuePayments, user]);
 
   // Filter payment history based on search and status
   const filteredHistory = paymentHistory.filter((payment) => {
@@ -195,6 +295,89 @@ const PaymentSection = ({
   const toggleSortOrder = () => {
     setSortOrder(sortOrder === "asc" ? "desc" : "asc");
   };
+
+  // Process payment
+  const processPayment = async () => {
+    if (!selectedPayment) return;
+    
+    setIsProcessingPayment(true);
+    
+    try {
+      // In a real app, this would connect to a payment processor
+      // For now, we'll simulate a successful payment
+      
+      // Add payment to database
+      const paymentData = {
+        parent_id: user?.id,
+        amount: selectedPayment.amount,
+        date: new Date().toISOString().split('T')[0],
+        description: selectedPayment.description,
+        payment_method: paymentMethod === 'credit-card' ? 'Credit Card' : 
+                        paymentMethod === 'bank-transfer' ? 'Bank Transfer' : 'PayPal',
+        status: 'paid'
+      };
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Add to payment history
+      const newPayment: Payment = {
+        id: Date.now().toString(),
+        date: new Date().toISOString().split('T')[0],
+        amount: selectedPayment.amount,
+        status: 'paid',
+        description: selectedPayment.description,
+        method: paymentMethod === 'credit-card' ? 'Credit Card' : 
+                paymentMethod === 'bank-transfer' ? 'Bank Transfer' : 'PayPal',
+      };
+      
+      setPaymentHistory(prev => [newPayment, ...prev]);
+      
+      // Remove from due payments
+      setDuePayments(prev => prev.filter(p => p.id !== selectedPayment.id));
+      
+      // Close dialog
+      setIsPaymentDialogOpen(false);
+      
+      // Reset form
+      setCardNumber('');
+      setExpiryDate('');
+      setCvv('');
+      
+    } catch (err) {
+      console.error("Error processing payment:", err);
+      // Show error message
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="w-full bg-white p-6 rounded-lg shadow-sm flex justify-center items-center min-h-[400px]">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-2 text-gray-600">Loading payment information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full bg-white p-6 rounded-lg shadow-sm">
+        <div className="text-center text-red-500 p-4">
+          <p>{error}</p>
+          <button 
+            className="mt-2 text-primary hover:underline"
+            onClick={() => window.location.reload()}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-white p-6 rounded-lg shadow-sm">
@@ -297,7 +480,7 @@ const PaymentSection = ({
                 </CardContent>
                 <CardFooter className="flex justify-between border-t pt-4">
                   <p className="text-sm text-gray-500">
-                    Showing {duePayments.length} upcoming payments
+                    Total due: ${totalDue.toFixed(2)}
                   </p>
                   <Button variant="outline" size="sm">
                     <Calendar className="mr-2 h-4 w-4" />
@@ -495,7 +678,11 @@ const PaymentSection = ({
               <Label htmlFor="method" className="text-right">
                 Payment Method
               </Label>
-              <Select defaultValue="credit-card">
+              <Select 
+                defaultValue="credit-card"
+                onValueChange={setPaymentMethod}
+                value={paymentMethod}
+              >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select payment method" />
                 </SelectTrigger>
@@ -514,24 +701,51 @@ const PaymentSection = ({
                 id="card-number"
                 placeholder="**** **** **** ****"
                 className="col-span-3"
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value)}
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="expiry" className="text-right">
                 Expiry Date
               </Label>
-              <Input id="expiry" placeholder="MM/YY" className="col-span-1" />
+              <Input 
+                id="expiry" 
+                placeholder="MM/YY" 
+                className="col-span-1"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+              />
               <Label htmlFor="cvv" className="text-right">
                 CVV
               </Label>
-              <Input id="cvv" placeholder="***" className="col-span-1" />
+              <Input 
+                id="cvv" 
+                placeholder="***" 
+                className="col-span-1"
+                value={cvv}
+                onChange={(e) => setCvv(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline" disabled={isProcessingPayment}>Cancel</Button>
             </DialogClose>
-            <Button type="submit">Process Payment</Button>
+            <Button 
+              type="submit" 
+              onClick={processPayment}
+              disabled={isProcessingPayment}
+            >
+              {isProcessingPayment ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Process Payment'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

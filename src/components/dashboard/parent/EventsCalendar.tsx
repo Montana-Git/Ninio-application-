@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Card,
@@ -16,14 +16,14 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  InfoIcon,
+  Loader2,
 } from "lucide-react";
+import { getEvents } from "@/lib/api";
 
 interface Event {
   id: string;
@@ -37,10 +37,55 @@ interface EventsCalendarProps {
   events?: Event[];
 }
 
-const EventsCalendar = ({ events = [] }: EventsCalendarProps) => {
+const EventsCalendar = ({ events: propEvents }: EventsCalendarProps) => {
   const [date, setDate] = useState<Date>(new Date());
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      // If events are provided as props, use them
+      if (propEvents && propEvents.length > 0) {
+        setEvents(propEvents);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await getEvents();
+        if (error) throw new Error(error.message);
+        
+        if (data && data.length > 0) {
+          // Transform the data to match our Event interface
+          const formattedEvents = data.map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            date: new Date(item.date),
+            type: item.type || "activity",
+            description: item.description,
+          }));
+          setEvents(formattedEvents);
+        } else {
+          // Use default events if no data is returned
+          setEvents(defaultEvents);
+        }
+      } catch (err: any) {
+        console.error("Error fetching events:", err);
+        setError("Failed to load events. Please try again later.");
+        // Fallback to default events
+        setEvents(defaultEvents);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [propEvents]);
 
   // Default events if none provided
   const defaultEvents: Event[] = [
@@ -84,10 +129,8 @@ const EventsCalendar = ({ events = [] }: EventsCalendarProps) => {
     },
   ];
 
-  const displayEvents = events.length > 0 ? events : defaultEvents;
-
   // Get events for the current month
-  const currentMonthEvents = displayEvents.filter((event) => {
+  const currentMonthEvents = events.filter((event) => {
     return (
       event.date.getMonth() === date.getMonth() &&
       event.date.getFullYear() === date.getFullYear()
@@ -99,7 +142,7 @@ const EventsCalendar = ({ events = [] }: EventsCalendarProps) => {
   const nextWeek = new Date(today);
   nextWeek.setDate(today.getDate() + 7);
 
-  const upcomingEvents = displayEvents
+  const upcomingEvents = events
     .filter((event) => {
       return event.date >= today && event.date <= nextWeek;
     })
@@ -131,6 +174,60 @@ const EventsCalendar = ({ events = [] }: EventsCalendarProps) => {
       day: "numeric",
     }).format(date);
   };
+
+  const handleAddToCalendar = (event: Event) => {
+    // Create calendar event
+    const eventTitle = encodeURIComponent(event.title);
+    const eventDetails = encodeURIComponent(event.description);
+    const eventLocation = encodeURIComponent("Kindergarten");
+    
+    // Set event time (default to 9am-10am if not specified)
+    const eventDate = new Date(event.date);
+    eventDate.setHours(9, 0, 0);
+    
+    // End time is 1 hour later by default
+    const endDate = new Date(eventDate);
+    endDate.setHours(endDate.getHours() + 1);
+    
+    const startDateStr = eventDate.toISOString().replace(/-|:|\.\d+/g, '');
+    const endDateStr = endDate.toISOString().replace(/-|:|\.\d+/g, '');
+    
+    // Google Calendar URL
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&details=${eventDetails}&location=${eventLocation}&dates=${startDateStr}/${endDateStr}`;
+    
+    // Open in new tab
+    window.open(googleCalendarUrl, '_blank');
+    
+    // Close dialog
+    setIsDialogOpen(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-full bg-white p-6 rounded-lg shadow-sm flex justify-center items-center min-h-[400px]">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-2 text-gray-600">Loading events calendar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-full bg-white p-6 rounded-lg shadow-sm">
+        <div className="text-center text-red-500 p-4">
+          <p>{error}</p>
+          <button 
+            className="mt-2 text-primary hover:underline"
+            onClick={() => window.location.reload()}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-white p-6 rounded-lg shadow-sm">
@@ -304,7 +401,9 @@ const EventsCalendar = ({ events = [] }: EventsCalendarProps) => {
                   >
                     Close
                   </Button>
-                  <Button>Add to Calendar</Button>
+                  <Button onClick={() => handleAddToCalendar(selectedEvent)}>
+                    Add to Calendar
+                  </Button>
                 </div>
               </div>
             </>

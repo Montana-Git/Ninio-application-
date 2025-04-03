@@ -8,6 +8,8 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 // Lazy load pages for better performance
 const LoginPage = lazy(() => import("./pages/auth/login"));
 const RegisterPage = lazy(() => import("./pages/auth/register"));
+const ForgotPasswordPage = lazy(() => import("./pages/auth/forgot-password"));
+const ResetPasswordPage = lazy(() => import("./pages/auth/reset-password"));
 const ParentDashboard = lazy(() => import("./pages/dashboard/parent"));
 const ParentProfilePage = lazy(
   () => import("./pages/dashboard/parent/profile"),
@@ -65,6 +67,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/register" element={<RegisterPage />} />
+            <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
             {/* Protected parent routes */}
             <Route
