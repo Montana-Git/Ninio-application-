@@ -1,4 +1,4 @@
-import React from "react";
+
 import { useTranslation } from "react-i18next";
 import Hero from "./Hero";
 import FacilitiesSection from "./FacilitiesSection";
@@ -11,7 +11,7 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Hero backgroundImage="https://images.unsplash.com/photo-1587653263995-422546a7a559?w=1512&q=80" />
+      <Hero useThreeJsBackground={true} />
       <FacilitiesSection />
       <PhilosophySection />
       <ProgramsSection />

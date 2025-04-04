@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,14 +28,27 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { format, isSameDay, isSameMonth } from "date-fns";
 import {
   PlusCircle,
-  Edit,
+  Pencil,
   Trash2,
   Calendar as CalendarIcon,
+  Clock,
+  MapPin,
+  Info,
+  Loader2,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
+import { getEvents, addEvent, updateEvent, deleteEvent } from "@/lib/api";
 
+// Define the Event type
 interface Event {
   id: string;
   title: string;
@@ -43,110 +56,232 @@ interface Event {
   time: string;
   description: string;
   location: string;
+  type?: 'holiday' | 'activity' | 'meeting';
+  isPublic?: boolean;
 }
 
 interface EventsManagementProps {
   events?: Event[];
 }
 
-const EventsManagement = ({ events = [] }: EventsManagementProps) => {
-  // Default mock data if no events are provided
-  const defaultEvents: Event[] = [
-    {
-      id: "1",
-      title: "Parent-Teacher Meeting",
-      date: new Date(2023, 5, 15),
-      time: "15:00",
-      description: "Quarterly meeting to discuss student progress",
-      location: "Main Hall",
-    },
-    {
-      id: "2",
-      title: "Summer Festival",
-      date: new Date(2023, 6, 20),
-      time: "10:00",
-      description: "Annual summer celebration with games and performances",
-      location: "Kindergarten Playground",
-    },
-    {
-      id: "3",
-      title: "Art Exhibition",
-      date: new Date(2023, 7, 5),
-      time: "13:30",
-      description: "Showcasing children's artwork from the semester",
-      location: "Art Room",
-    },
-  ];
+// Form schema for adding/editing events
+const eventFormSchema = z.object({
+  title: z.string().min(2, { message: "Title must be at least 2 characters" }),
+  date: z.date({ required_error: "Please select a date" }),
+  time: z.string().optional(),
+  description: z.string().optional(),
+  location: z.string().optional(),
+  isPublic: z.boolean().default(true),
+});
 
-  const [eventsList, setEventsList] = useState<Event[]>(
-    events.length ? events : defaultEvents,
-  );
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    new Date(),
-  );
+const EventsManagement = ({ events = [] }: EventsManagementProps) => {
+  // We'll fetch events from the API instead of using mock data
+
+  const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isEditEventOpen, setIsEditEventOpen] = useState(false);
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null);
+  const [eventsList, setEventsList] = useState<Event[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
-  // Form setup
-  const form = useForm({
+  // Create form for adding events
+  const form = useForm<z.infer<typeof eventFormSchema>>({
+    resolver: zodResolver(eventFormSchema),
     defaultValues: {
       title: "",
-      date: new Date(),
       time: "",
       description: "",
       location: "",
+      isPublic: true,
     },
   });
 
-  const editForm = useForm({
+  // Create form for editing events
+  const editForm = useForm<z.infer<typeof eventFormSchema>>({
+    resolver: zodResolver(eventFormSchema),
     defaultValues: {
       title: "",
-      date: new Date(),
       time: "",
       description: "",
       location: "",
+      isPublic: true,
     },
   });
 
   // Filter events for the selected date
-  const eventsForSelectedDate = selectedDate
+  const eventsForSelectedDate = eventsList
     ? eventsList.filter(
         (event) =>
-          event.date.getDate() === selectedDate.getDate() &&
-          event.date.getMonth() === selectedDate.getMonth() &&
+          isSameDay(event.date, selectedDate) &&
+          isSameMonth(event.date, selectedDate) &&
           event.date.getFullYear() === selectedDate.getFullYear(),
       )
     : [];
 
-  // Handle adding a new event
-  const handleAddEvent = (data: any) => {
-    const newEvent: Event = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...data,
-      date: data.date || new Date(),
+  // Fetch events from the API
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setIsLoadingEvents(true);
+      try {
+        const { data, error } = await getEvents();
+        if (error) throw error;
+
+        if (data) {
+          // Transform API data to match our Event type
+          const formattedEvents = data.map((event: any) => ({
+            id: event.id,
+            title: event.title,
+            date: new Date(event.date),
+            time: event.time || '00:00',
+            description: event.description || '',
+            location: event.location || '',
+            type: event.type || 'activity',
+            isPublic: event.is_public || true
+          }));
+
+          setEventsList(formattedEvents);
+        }
+      } catch (error) {
+        console.error('Error fetching events:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load events. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingEvents(false);
+      }
     };
-    setEventsList([...eventsList, newEvent]);
-    setIsAddEventOpen(false);
-    form.reset();
+
+    fetchEvents();
+  }, [toast]);
+
+  // Handle adding a new event
+  const handleAddEvent = async (data: any) => {
+    try {
+      // Create event in the database
+      const { error } = await addEvent({
+        title: data.title,
+        date: data.date.toISOString().split('T')[0],
+        time: data.time,
+        description: data.description,
+        location: data.location,
+        type: 'activity', // Default type
+        is_public: data.isPublic
+      });
+
+      if (error) throw error;
+
+      // Refresh events list
+      const { data: updatedEvents } = await getEvents();
+      if (updatedEvents) {
+        const formattedEvents = updatedEvents.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          date: new Date(event.date),
+          time: event.time || '00:00',
+          description: event.description || '',
+          location: event.location || '',
+          type: event.type || 'activity',
+          isPublic: event.is_public || true
+        }));
+
+        setEventsList(formattedEvents);
+      }
+
+      setIsAddEventOpen(false);
+      form.reset();
+
+      toast({
+        title: 'Success',
+        description: 'Event added successfully',
+      });
+    } catch (error) {
+      console.error('Error adding event:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add event. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Handle editing an event
-  const handleEditEvent = (data: any) => {
-    if (currentEvent) {
-      const updatedEvents = eventsList.map((event) =>
-        event.id === currentEvent.id ? { ...event, ...data } : event,
-      );
-      setEventsList(updatedEvents);
+  const handleEditEvent = async (data: any) => {
+    if (!currentEvent) return;
+
+    try {
+      // Update event in the database
+      const { error } = await updateEvent(currentEvent.id, {
+        title: data.title,
+        date: data.date.toISOString().split('T')[0],
+        time: data.time,
+        description: data.description,
+        location: data.location,
+        type: currentEvent.type || 'activity', // Preserve existing type or set default
+        is_public: data.isPublic
+      });
+
+      if (error) throw error;
+
+      // Refresh events list
+      const { data: updatedEvents } = await getEvents();
+      if (updatedEvents) {
+        const formattedEvents = updatedEvents.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          date: new Date(event.date),
+          time: event.time || '00:00',
+          description: event.description || '',
+          location: event.location || '',
+          type: event.type || 'activity',
+          isPublic: event.is_public || true
+        }));
+
+        setEventsList(formattedEvents);
+      }
+
       setIsEditEventOpen(false);
       setCurrentEvent(null);
+      editForm.reset();
+
+      toast({
+        title: 'Success',
+        description: 'Event updated successfully',
+      });
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update event. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
   // Handle deleting an event
-  const handleDeleteEvent = (id: string) => {
-    const updatedEvents = eventsList.filter((event) => event.id !== id);
-    setEventsList(updatedEvents);
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      // Delete event from the database
+      const { error } = await deleteEvent(id);
+      if (error) throw error;
+
+      // Update local state
+      setEventsList(eventsList.filter((event) => event.id !== id));
+
+      toast({
+        title: 'Success',
+        description: 'Event deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete event. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Open edit dialog with event data
@@ -158,6 +293,7 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
       time: event.time,
       description: event.description,
       location: event.location,
+      isPublic: event.isPublic,
     });
     setIsEditEventOpen(true);
   };
@@ -173,7 +309,7 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
               Add New Event
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Add New Event</DialogTitle>
             </DialogHeader>
@@ -187,9 +323,9 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Event Title</FormLabel>
+                      <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter event title" {...field} />
+                        <Input placeholder="Event title" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -200,12 +336,13 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                   name="date"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Event Date</FormLabel>
+                      <FormLabel>Date</FormLabel>
                       <Calendar
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        className="rounded-md border mx-auto w-full max-w-[350px]"
+                        disabled={(date) => date < new Date("1900-01-01")}
+                        initialFocus
                       />
                       <FormMessage />
                     </FormItem>
@@ -216,25 +353,9 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                   name="time"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Event Time</FormLabel>
+                      <FormLabel>Time</FormLabel>
                       <FormControl>
                         <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter event description"
-                          {...field}
-                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -247,16 +368,51 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                     <FormItem>
                       <FormLabel>Location</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter event location" {...field} />
+                        <Input placeholder="Event location" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-                  <Button type="submit" className="w-full sm:w-auto">
-                    Save Event
-                  </Button>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Event description"
+                          className="resize-none"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isPublic"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Visible to Parents</FormLabel>
+                        <FormDescription>
+                          Make this event visible to parents in their dashboard
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="submit">Add Event</Button>
                 </DialogFooter>
               </form>
             </Form>
@@ -264,107 +420,158 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar View */}
-        <div className="lg:col-span-1 bg-gray-50 p-4 rounded-lg">
-          <div className="mb-4">
-            <h3 className="text-lg font-medium flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5" />
-              Calendar View
-            </h3>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Calendar</h3>
           <Calendar
             mode="single"
             selected={selectedDate}
-            onSelect={setSelectedDate}
-            className="rounded-md border mx-auto w-full max-w-[350px]"
+            onSelect={(date) => date && setSelectedDate(date)}
+            className="rounded-md border"
           />
         </div>
 
-        {/* Events List */}
-        <div className="lg:col-span-2">
-          <div className="mb-4">
-            <h3 className="text-lg font-medium">
-              {selectedDate ? (
-                <>Events for {selectedDate.toLocaleDateString()}</>
-              ) : (
-                <>All Events</>
-              )}
-            </h3>
-          </div>
-
-          {eventsForSelectedDate.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead className="hidden sm:table-cell">Time</TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Location
-                    </TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {eventsForSelectedDate.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell className="font-medium">
-                        <div>{event.title}</div>
-                        <div className="sm:hidden text-xs text-gray-500 mt-1">
+        <div>
+          <h3 className="text-lg font-semibold mb-4">
+            Events for {format(selectedDate, "MMMM d, yyyy")}
+          </h3>
+          {isLoadingEvents ? (
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : eventsForSelectedDate.length > 0 ? (
+            <div className="space-y-4">
+              {eventsForSelectedDate.map((event) => (
+                <div
+                  key={event.id}
+                  className="p-4 border rounded-md hover:bg-gray-50"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium">{event.title}</h4>
+                      <div className="text-sm text-gray-500 mt-1 space-y-1">
+                        <div className="flex items-center">
+                          <Clock className="h-3.5 w-3.5 mr-1" />
                           {event.time}
                         </div>
-                        <div className="md:hidden text-xs text-gray-500 mt-1">
-                          {event.location}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        {event.time}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {event.location}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(event)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteEvent(event.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        {event.location && (
+                          <div className="flex items-center">
+                            <MapPin className="h-3.5 w-3.5 mr-1" />
+                            {event.location}
+                          </div>
+                        )}
+                        {event.description && (
+                          <div className="flex items-center">
+                            <Info className="h-3.5 w-3.5 mr-1" />
+                            {event.description}
+                          </div>
+                        )}
+                      </div>
+                      {event.isPublic !== undefined && (
+                        <Badge
+                          variant={event.isPublic ? "default" : "outline"}
+                          className="mt-2"
+                        >
+                          {event.isPublic ? "Public" : "Private"}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEditDialog(event)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteEvent(event.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">No events scheduled for this date</p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => setIsAddEventOpen(true)}
-              >
-                Add Event
-              </Button>
+            <div className="text-center py-8 text-gray-500">
+              No events scheduled for this date
             </div>
           )}
         </div>
       </div>
 
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-4">All Upcoming Events</h3>
+        {isLoadingEvents ? (
+          <div className="flex items-center justify-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : eventsList.length > 0 ? (
+          <Table>
+            <TableCaption>List of all upcoming events</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Visibility</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {eventsList
+                .filter((event) => event.date >= new Date(new Date().setHours(0, 0, 0, 0)))
+                .sort((a, b) => a.date.getTime() - b.date.getTime())
+                .map((event) => (
+                  <TableRow key={event.id}>
+                    <TableCell className="font-medium">{event.title}</TableCell>
+                    <TableCell>{format(event.date, "MMM d, yyyy")}</TableCell>
+                    <TableCell>{event.time}</TableCell>
+                    <TableCell>{event.location}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={event.isPublic ? "default" : "outline"}
+                      >
+                        {event.isPublic ? "Public" : "Private"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(event)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteEvent(event.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No upcoming events
+          </div>
+        )}
+      </div>
+
       {/* Edit Event Dialog */}
       <Dialog open={isEditEventOpen} onOpenChange={setIsEditEventOpen}>
-        <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl w-[calc(100%-2rem)] sm:w-auto">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
           </DialogHeader>
@@ -378,9 +585,9 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Event Title</FormLabel>
+                    <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter event title" {...field} />
+                      <Input placeholder="Event title" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -391,12 +598,13 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                 name="date"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Event Date</FormLabel>
+                    <FormLabel>Date</FormLabel>
                     <Calendar
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
-                      className="rounded-md border mx-auto w-full max-w-[350px]"
+                      disabled={(date) => date < new Date("1900-01-01")}
+                      initialFocus
                     />
                     <FormMessage />
                   </FormItem>
@@ -407,22 +615,9 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                 name="time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Event Time</FormLabel>
+                    <FormLabel>Time</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter event description" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -435,16 +630,51 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter event location" {...field} />
+                      <Input placeholder="Event location" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-                <Button type="submit" className="w-full sm:w-auto">
-                  Update Event
-                </Button>
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Event description"
+                        className="resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="isPublic"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Visible to Parents</FormLabel>
+                      <FormDescription>
+                        Make this event visible to parents in their dashboard
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit">Update Event</Button>
               </DialogFooter>
             </form>
           </Form>

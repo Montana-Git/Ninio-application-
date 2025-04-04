@@ -1,6 +1,6 @@
-import React from 'react';
+
 import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 
 const ProfileLayout = ({ children }) => {
   const { user } = useAuth();
@@ -11,7 +11,7 @@ const ProfileLayout = ({ children }) => {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Please sign in</h1>
           <p className="mb-4">You need to be logged in to access your profile.</p>
-          <Link href="/auth/login" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+          <Link to="/auth/login" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
             Sign In
           </Link>
         </div>
@@ -42,28 +42,28 @@ const ProfileLayout = ({ children }) => {
                 <p className="text-gray-600">{user.role === 'parent' ? 'Parent' : 'Administrator'}</p>
               </div>
             </div>
-            
+
             <nav>
               <ul className="space-y-2">
                 <li>
-                  <Link href="/profile" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
+                  <Link to="/profile" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
                     My Profile
                   </Link>
                 </li>
                 {user.role === 'parent' && (
                   <li>
-                    <Link href="/profile/children" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
+                    <Link to="/profile/children" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
                       My Children
                     </Link>
                   </li>
                 )}
                 <li>
-                  <Link href="/profile/notifications" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
+                  <Link to="/profile/notifications" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
                     Notifications
                   </Link>
                 </li>
                 <li>
-                  <Link href="/profile/security" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
+                  <Link to="/profile/security" className="block py-2 px-4 rounded hover:bg-gray-100 transition-colors">
                     Security
                   </Link>
                 </li>
@@ -71,7 +71,7 @@ const ProfileLayout = ({ children }) => {
             </nav>
           </div>
         </div>
-        
+
         {/* Main Content */}
         <div className="w-full md:w-3/4">
           {children}

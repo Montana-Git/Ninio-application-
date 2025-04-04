@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import ErrorMessage from "@/components/ui/error-message";
+import SuccessMessage from "@/components/ui/success-message";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,20 +30,24 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-interface LoginFormValues {
-  email: string;
-  password: string;
-  rememberMe: boolean;
-}
+const loginSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  password: z.string().min(1, { message: "Password is required" }),
+  rememberMe: z.boolean().optional().default(false),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
 
   const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
@@ -55,6 +64,12 @@ const LoginPage = () => {
         navigate("/dashboard/parent");
       }
     }
+
+    // Check if user just verified their email
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('verified') === 'true') {
+      setVerificationSuccess(true);
+    }
   }, [user, navigate]);
 
   const onSubmit = async (data: LoginFormValues) => {
@@ -65,13 +80,26 @@ const LoginPage = () => {
       const { error } = await signIn(data.email, data.password);
 
       if (error) {
-        setLoginError("Invalid email or password");
-        throw error;
+        // Handle different error types with more specific messages
+        if (error.message?.includes("Email not confirmed")) {
+          setLoginError("Please verify your email address before logging in. Check your inbox for a verification link.");
+        } else if (error.message?.includes("Invalid login") || error.message?.includes("Invalid email") || error.message?.includes("Invalid password")) {
+          setLoginError("Invalid email or password. Please try again.");
+        } else if (error.message?.includes("rate limit") || error.message?.includes("too many requests")) {
+          setLoginError("Too many login attempts. Please try again later.");
+        } else if (error.message?.includes("network") || error.message?.includes("connection")) {
+          setLoginError("Network error. Please check your internet connection and try again.");
+        } else {
+          setLoginError(error.message || "An error occurred during sign in. Please try again.");
+        }
+        console.error("Login error:", error);
+        return; // Don't throw, we've handled the error
       }
 
       // Navigation will happen in the useEffect when user state updates
-    } catch (error) {
-      console.error("Login error:", error);
+    } catch (error: any) {
+      console.error("Unexpected login error:", error);
+      setLoginError(error.message || "An unexpected error occurred. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -101,6 +129,13 @@ const LoginPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {verificationSuccess && (
+              <SuccessMessage
+                className="mb-6"
+                title="Email Verified Successfully!"
+                message="Your email has been verified. You can now sign in to your account."
+              />
+            )}
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
@@ -184,33 +219,11 @@ const LoginPage = () => {
                 </div>
 
                 {loginError && (
-                  <p className="text-sm text-red-500 mb-2">{loginError}</p>
+                  <ErrorMessage message={loginError} className="mb-4" />
                 )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <svg
-                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Signing in...
-                    </span>
+                    <LoadingSpinner size="sm" text="Signing in..." />
                   ) : (
                     <span className="flex items-center gap-2">
                       <LogIn className="h-4 w-4" /> Sign In

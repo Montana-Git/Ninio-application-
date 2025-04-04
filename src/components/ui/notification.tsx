@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
@@ -22,7 +23,7 @@ const notificationVariants = cva(
   },
 );
 
-const Notification = React.forwardRef<
+const Notification = forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> &
     VariantProps<typeof notificationVariants>
@@ -37,7 +38,7 @@ const Notification = React.forwardRef<
 });
 Notification.displayName = "Notification";
 
-const NotificationClose = React.forwardRef<
+const NotificationClose = forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement>
 >(({ className, ...props }, ref) => (
@@ -54,7 +55,7 @@ const NotificationClose = React.forwardRef<
 ));
 NotificationClose.displayName = "NotificationClose";
 
-const NotificationTitle = React.forwardRef<
+const NotificationTitle = forwardRef<
   HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
@@ -66,7 +67,7 @@ const NotificationTitle = React.forwardRef<
 ));
 NotificationTitle.displayName = "NotificationTitle";
 
-const NotificationDescription = React.forwardRef<
+const NotificationDescription = forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (

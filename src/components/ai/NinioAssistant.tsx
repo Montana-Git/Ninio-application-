@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,7 +12,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Bot, Send, User, Languages, Loader2, X } from "lucide-react";
-// import { getGroqChatCompletion } from "@/lib/groq";
+import { getGroqChatCompletion } from "@/lib/groq";
+import { retry } from "@/utils/api";
+import { ApiError } from "@/utils/errors";
 
 interface Message {
   role: "user" | "assistant";
@@ -153,32 +155,40 @@ const NinioAssistant: React.FC<NinioAssistantProps> = ({ isOpen, onClose }) => {
         ...conversationHistory,
       ];
 
-      // Call the Groq API directly
-      const response = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Bearer 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",
-          },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: apiMessages,
-            temperature: 0.7,
-            max_tokens: 500,
-          }),
-        },
-      );
+      // Call the Groq API using our utility function with retry logic
+      let assistantResponse;
+      try {
+        const completion = await retry(
+          async () => getGroqChatCompletion(apiMessages),
+          {
+            maxRetries: 3,
+            initialDelay: 500,
+            onRetry: (error, attempt) => {
+              console.warn(`AI API call failed, retrying (${attempt}/3)...`, error);
+              setMessages(prev => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: `I'm thinking... (retry ${attempt}/3)`,
+                  language,
+                }
+              ]);
+            }
+          }
+        );
+        assistantResponse = completion.choices[0].message.content;
+      } catch (apiError) {
+        console.error("Error calling Groq API after retries:", apiError);
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        // Check if the error is related to browser environment
+        if (apiError.message && apiError.message.includes('browser-like environment')) {
+          console.warn('Using mock response due to browser environment restrictions');
+          assistantResponse = getMockResponse(userMessage.content, language);
+        } else {
+          // For other errors, use a generic fallback response
+          assistantResponse = "I'm sorry, I'm having trouble connecting to my knowledge base right now. Please try again later or contact support if the problem persists.";
+        }
       }
-
-      const data = await response.json();
-      console.log("API Response data:", data);
-      const assistantResponse = data.choices[0].message.content;
 
       setMessages((prev) => [
         ...prev,

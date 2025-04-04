@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlusCircle, Edit, Trash2, Search, Calendar, Info } from "lucide-react";
 import { useForm } from "react-hook-form";

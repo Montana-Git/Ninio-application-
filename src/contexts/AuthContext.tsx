@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, getCurrentUser } from "@/lib/api";
-import { Session } from "@supabase/supabase-js";
+import { getCurrentUser } from "@/lib/api";
+import { ExtendedUser } from "@/types/extended.types";
+import { Session, createClient } from "@supabase/supabase-js";
+import { AuthError, handleApiError } from "@/utils/errors";
 
 type AuthContextType = {
   session: Session | null;
-  user: User | null;
+  user: ExtendedUser | null;
   isLoading: boolean;
   isAdmin: boolean;
   isParent: boolean;
@@ -46,7 +48,7 @@ const useAuth = () => useContext(AuthContext);
 
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<ExtendedUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -80,13 +82,23 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUser = async () => {
     setIsLoading(true);
-    const { data, error } = await getCurrentUser();
-    if (error) {
-      console.error("Error fetching user:", error);
-    } else {
-      setUser(data);
+    try {
+      const { data, error } = await getCurrentUser();
+      if (error) {
+        console.error("Error fetching user:", error);
+        // If there's an authentication error, sign out the user
+        if (error.code?.includes('AUTH_') || error.status === 401) {
+          await signOut();
+        }
+      } else {
+        setUser(data);
+      }
+    } catch (error) {
+      console.error("Unexpected error fetching user:", error);
+      await signOut();
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const signUp = async (
@@ -111,6 +123,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             children_count: childrenCount,
             children_names: childrenNames,
           },
+          emailRedirectTo: `${window.location.origin}/auth/login?verified=true`,
         },
       });
 
@@ -137,7 +150,8 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const serviceRoleKey =
             import.meta.env.VITE_SUPABASE_SERVICE_KEY || "";
           if (serviceRoleKey) {
-            const supabaseAdmin = supabase.auth.admin;
+            // Create a new client with the service role key
+            const supabaseAdmin = createClient(import.meta.env.VITE_SUPABASE_URL || "", serviceRoleKey);
             const { error: adminInsertError } = await supabaseAdmin
               .from("users")
               .insert({
@@ -173,30 +187,62 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
+      if (!email || !password) {
+        throw new AuthError(
+          'Email and password are required',
+          'AUTH_MISSING_CREDENTIALS',
+          400
+        );
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (!error && data.user) {
-        const { data: profile } = await getCurrentUser();
-        setUser(profile);
+      if (error) {
+        throw new AuthError(
+          error.message || 'Authentication failed',
+          'AUTH_SIGNIN_ERROR',
+          401
+        );
       }
 
-      return { data, error };
+      if (data.user) {
+        try {
+          const { data: profile, error: profileError } = await getCurrentUser();
+          if (profileError) {
+            console.error("Error fetching user profile:", profileError);
+          } else {
+            setUser(profile);
+          }
+        } catch (profileError) {
+          console.error("Error fetching user profile:", profileError);
+          // Continue with sign-in even if profile fetch fails
+        }
+      }
+
+      return { data, error: null };
     } catch (error) {
       console.error("Error signing in:", error);
-      return { data: null, error };
+      return handleApiError(error, { email });
     }
   };
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Error signing out:", error);
+      }
+      // Always clear user state even if there's an error
       setUser(null);
       setSession(null);
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error("Unexpected error signing out:", error);
+      // Force clear user state
+      setUser(null);
+      setSession(null);
     }
   };
 

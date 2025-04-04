@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -44,7 +44,7 @@ const ChildActivities = ({
       try {
         // If childId is provided, use it; otherwise, try to get activities for the first child of the parent
         const targetChildId = childId || (user?.children_names && user.children_names.length > 0 ? user.children_names[0] : undefined);
-        
+
         if (targetChildId) {
           const { data, error } = await getChildActivities(targetChildId);
           if (error) throw new Error(error.message);
@@ -61,7 +61,8 @@ const ChildActivities = ({
             })));
           }
         } else {
-          // Fallback to mock data if no child ID is available
+          // No child ID available
+          setError("No child information available. Please contact the administrator.");
           setActivities([
             {
               id: "1",
@@ -169,7 +170,7 @@ const ChildActivities = ({
       <div className="w-full bg-white p-4 sm:p-6 rounded-xl">
         <div className="text-center text-red-500 p-4">
           <p>{error}</p>
-          <button 
+          <button
             className="mt-2 text-primary hover:underline"
             onClick={() => window.location.reload()}
           >
@@ -259,7 +260,7 @@ const ActivityCard = ({
     const eventTitle = encodeURIComponent(title);
     const eventDetails = encodeURIComponent(description);
     const eventLocation = encodeURIComponent(location);
-    
+
     // Parse date and time
     const [startTime] = time.split(' - ');
     const [hours, minutes] = startTime.match(/(\d+):(\d+)/)?.slice(1) || ['9', '00'];
@@ -267,20 +268,20 @@ const ActivityCard = ({
     let hour = parseInt(hours);
     if (isPM && hour < 12) hour += 12;
     if (!isPM && hour === 12) hour = 0;
-    
+
     const eventDate = new Date(date);
     eventDate.setHours(hour, parseInt(minutes));
-    
+
     // End time is 1 hour later by default
     const endDate = new Date(eventDate);
     endDate.setHours(endDate.getHours() + 1);
-    
+
     const startDateStr = eventDate.toISOString().replace(/-|:|\.\d+/g, '');
     const endDateStr = endDate.toISOString().replace(/-|:|\.\d+/g, '');
-    
+
     // Google Calendar URL
     const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&details=${eventDetails}&location=${eventLocation}&dates=${startDateStr}/${endDateStr}`;
-    
+
     // Open in new tab
     window.open(googleCalendarUrl, '_blank');
   };
@@ -324,7 +325,7 @@ const ActivityCard = ({
       </CardContent>
       <CardFooter className="p-3 sm:p-6 pt-0 sm:pt-0">
         {isUpcoming && (
-          <button 
+          <button
             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
             onClick={handleAddToCalendar}
           >

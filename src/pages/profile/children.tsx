@@ -1,26 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import { useAuth } from '@/contexts/AuthContext';
-import { getChildren, addChild } from '@/lib/api';
+import { getChildren, addChild, updateChild } from '@/lib/api';
+import { ExtendedChild } from '@/types/extended.types';
 
 const ChildrenManagement = () => {
   const { user } = useAuth();
-  const [children, setChildren] = useState([]);
+  const [children, setChildren] = useState<ExtendedChild[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  
+
   // New child form state
-  const [newChild, setNewChild] = useState({
+  const [newChild, setNewChild] = useState<Partial<ExtendedChild>>({
     first_name: '',
     last_name: '',
-    birth_date: '',
+    date_of_birth: '',
     gender: '',
     allergies: '',
     special_needs: '',
     emergency_contact: '',
     program_id: '',
   });
-  
+
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
   const [editChildId, setEditChildId] = useState(null);
@@ -33,12 +34,12 @@ const ChildrenManagement = () => {
 
   const fetchChildren = async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     try {
       const { data, error } = await getChildren(user.id);
       if (error) throw error;
-      
+
       setChildren(data || []);
     } catch (error) {
       console.error('Error fetching children:', error);
@@ -48,8 +49,17 @@ const ChildrenManagement = () => {
     }
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    // Handle special case for birth_date field
+    if (name === 'birth_date') {
+      setNewChild(prev => ({
+        ...prev,
+        date_of_birth: value
+      }));
+      return;
+    }
+
     setNewChild(prev => ({
       ...prev,
       [name]: value
@@ -59,34 +69,34 @@ const ChildrenManagement = () => {
   const handleAddChild = async (e) => {
     e.preventDefault();
     if (!user) return;
-    
+
     setIsAdding(true);
     setMessage({ type: '', text: '' });
-    
+
     try {
       const childData = {
         ...newChild,
         parent_id: user.id,
       };
-      
+
       const { data, error } = await addChild(childData);
       if (error) throw error;
-      
+
       // Add new child to the list
       setChildren(prev => [...prev, data]);
-      
+
       // Reset form
       setNewChild({
         first_name: '',
         last_name: '',
-        birth_date: '',
+        date_of_birth: '',
         gender: '',
         allergies: '',
         special_needs: '',
         emergency_contact: '',
         program_id: '',
       });
-      
+
       setMessage({ type: 'success', text: 'Child added successfully' });
       setIsAdding(false);
     } catch (error) {
@@ -96,11 +106,11 @@ const ChildrenManagement = () => {
     }
   };
 
-  const handleEditChild = (child) => {
+  const handleEditChild = (child: ExtendedChild) => {
     setNewChild({
       first_name: child.first_name,
       last_name: child.last_name,
-      birth_date: child.birth_date,
+      date_of_birth: child.date_of_birth,
       gender: child.gender,
       allergies: child.allergies || '',
       special_needs: child.special_needs || '',
@@ -111,32 +121,32 @@ const ChildrenManagement = () => {
     setIsEditMode(true);
   };
 
-  const handleUpdateChild = async (e) => {
+  const handleUpdateChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !editChildId) return;
-    
+
     setIsAdding(true);
     setMessage({ type: '', text: '' });
-    
+
     try {
       const childData = {
         ...newChild,
         parent_id: user.id,
       };
-      
+
       const { data, error } = await updateChild(editChildId, childData);
       if (error) throw error;
-      
+
       // Update child in the list
-      setChildren(prev => 
+      setChildren(prev =>
         prev.map(child => child.id === editChildId ? data : child)
       );
-      
+
       // Reset form and edit mode
       setNewChild({
         first_name: '',
         last_name: '',
-        birth_date: '',
+        date_of_birth: '',
         gender: '',
         allergies: '',
         special_needs: '',
@@ -145,7 +155,7 @@ const ChildrenManagement = () => {
       });
       setIsEditMode(false);
       setEditChildId(null);
-      
+
       setMessage({ type: 'success', text: 'Child updated successfully' });
     } catch (error) {
       console.error('Error updating child:', error);
@@ -159,7 +169,7 @@ const ChildrenManagement = () => {
     setNewChild({
       first_name: '',
       last_name: '',
-      birth_date: '',
+      date_of_birth: '',
       gender: '',
       allergies: '',
       special_needs: '',
@@ -177,17 +187,17 @@ const ChildrenManagement = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Children Management</h1>
-      
+
       {message.text && (
         <div className={`p-4 mb-6 rounded ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
           {message.text}
         </div>
       )}
-      
+
       {/* Children List */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4">My Children</h2>
-        
+
         {children.length === 0 ? (
           <p className="text-gray-500">No children added yet.</p>
         ) : (
@@ -197,28 +207,28 @@ const ChildrenManagement = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-bold text-lg">{child.first_name} {child.last_name}</h3>
-                    <p className="text-gray-600">Birth Date: {new Date(child.birth_date).toLocaleDateString()}</p>
+                    <p className="text-gray-600">Birth Date: {new Date(child.date_of_birth).toLocaleDateString()}</p>
                     <p className="text-gray-600">Gender: {child.gender}</p>
-                    
+
                     {child.allergies && (
                       <p className="text-gray-600 mt-2">
                         <span className="font-semibold">Allergies:</span> {child.allergies}
                       </p>
                     )}
-                    
+
                     {child.special_needs && (
                       <p className="text-gray-600">
                         <span className="font-semibold">Special Needs:</span> {child.special_needs}
                       </p>
                     )}
-                    
+
                     {child.emergency_contact && (
                       <p className="text-gray-600">
                         <span className="font-semibold">Emergency Contact:</span> {child.emergency_contact}
                       </p>
                     )}
                   </div>
-                  
+
                   <button
                     onClick={() => handleEditChild(child)}
                     className="text-blue-500 hover:text-blue-700"
@@ -231,13 +241,13 @@ const ChildrenManagement = () => {
           </div>
         )}
       </div>
-      
+
       {/* Add/Edit Child Form */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">
           {isEditMode ? 'Edit Child' : 'Add New Child'}
         </h2>
-        
+
         <form onSubmit={isEditMode ? handleUpdateChild : handleAddChild}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -276,7 +286,7 @@ const ChildrenManagement = () => {
                 id="birth_date"
                 name="birth_date"
                 type="date"
-                value={newChild.birth_date}
+                value={newChild.date_of_birth}
                 onChange={handleInputChange}
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 required
@@ -301,7 +311,7 @@ const ChildrenManagement = () => {
               </select>
             </div>
           </div>
-          
+
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="allergies">
               Allergies
@@ -312,11 +322,11 @@ const ChildrenManagement = () => {
               value={newChild.allergies}
               onChange={handleInputChange}
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              rows="2"
+              rows={2}
               placeholder="List any allergies or write 'None'"
             ></textarea>
           </div>
-          
+
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="special_needs">
               Special Needs
@@ -327,11 +337,11 @@ const ChildrenManagement = () => {
               value={newChild.special_needs}
               onChange={handleInputChange}
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              rows="2"
+              rows={2}
               placeholder="List any special needs or write 'None'"
             ></textarea>
           </div>
-          
+
           <div className="mb-6">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="emergency_contact">
               Emergency Contact
@@ -346,7 +356,7 @@ const ChildrenManagement = () => {
               placeholder="Name and phone number"
             />
           </div>
-          
+
           <div className="flex justify-end space-x-4">
             {isEditMode && (
               <button

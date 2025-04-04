@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -50,9 +50,23 @@ import {
   Clock,
   ArrowUpDown,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  CalendarIcon,
+  SlidersHorizontal,
 } from "lucide-react";
-import { getPayments, getParentPayments, addPayment } from "@/lib/api";
+import { getPayments, getParentPayments, processPayment, generateReceipt } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePayments } from "@/hooks/usePayments";
+import { PaymentForm, PaymentReceipt } from "@/components/ui/payment";
+import { PaymentMethod, PaymentStatus } from "@/services/payment-gateway-service";
+import { useAnalytics } from "@/contexts/AnalyticsContext";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Payment {
   id: string;
@@ -86,22 +100,32 @@ const PaymentSection = ({
 }: PaymentSectionProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<DuePayment | null>(
-    null,
-  );
+  const [selectedPayment, setSelectedPayment] = useState<DuePayment | null>(null);
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
+  const [sortField, setSortField] = useState<"date" | "amount" | "description">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
   const [duePayments, setDuePayments] = useState<DuePayment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState("credit-card");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [cvv, setCvv] = useState("");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [receiptTransactionId, setReceiptTransactionId] = useState<string | null>(null);
+  const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  // Date filter state
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+
+  // Use our custom hooks
+  const { processPayment: handleProcessPayment, getReceipt, isLoading: isPaymentLoading, error: paymentError } = usePayments();
+  const { trackPayment, trackPaymentSuccess, trackPaymentFailed } = useAnalytics();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -118,131 +142,101 @@ const PaymentSection = ({
           if (parentId) {
             const { data, error } = await getParentPayments(parentId);
             if (error) throw new Error(error.message);
-            
+
             if (data && data.length > 0) {
               // Transform the data to match our Payment interface
               const formattedPayments = data.map((item: any) => ({
-                id: item.id,
+                id: item.payment_id,
                 date: item.date,
                 amount: item.amount,
                 status: item.status || "paid",
-                description: item.description,
+                description: item.payment_type,
                 method: item.payment_method,
-                receiptUrl: item.receipt_url,
+                receiptUrl: item.payment_id, // Use payment ID as receipt reference
               }));
               setPaymentHistory(formattedPayments);
             } else {
-              // Use default payment history if no data is returned
-              setPaymentHistory([
-                {
-                  id: "1",
-                  date: "2023-05-15",
-                  amount: 250,
-                  status: "paid",
-                  description: "May Tuition Fee",
-                  method: "Credit Card",
-                  receiptUrl: "#",
-                },
-                {
-                  id: "2",
-                  date: "2023-06-15",
-                  amount: 250,
-                  status: "paid",
-                  description: "June Tuition Fee",
-                  method: "Bank Transfer",
-                  receiptUrl: "#",
-                },
-                {
-                  id: "3",
-                  date: "2023-07-15",
-                  amount: 250,
-                  status: "paid",
-                  description: "July Tuition Fee",
-                  method: "Credit Card",
-                  receiptUrl: "#",
-                },
-                {
-                  id: "4",
-                  date: "2023-08-15",
-                  amount: 275,
-                  status: "pending",
-                  description: "August Tuition Fee",
-                  method: "Credit Card",
-                },
-              ]);
+              // If no payment history found, use empty array
+              setPaymentHistory([]);
             }
           }
         } catch (err: any) {
           console.error("Error fetching payment history:", err);
           setError("Failed to load payment history. Please try again later.");
-          // Fallback to default payment history
-          setPaymentHistory([
-            {
-              id: "1",
-              date: "2023-05-15",
-              amount: 250,
-              status: "paid",
-              description: "May Tuition Fee",
-              method: "Credit Card",
-              receiptUrl: "#",
-            },
-            {
-              id: "2",
-              date: "2023-06-15",
-              amount: 250,
-              status: "paid",
-              description: "June Tuition Fee",
-              method: "Bank Transfer",
-              receiptUrl: "#",
-            },
-          ]);
+          // Fallback to empty array
+          setPaymentHistory([]);
         }
       }
 
       // If due payments are provided as props, use them
       if (propDuePayments && propDuePayments.length > 0) {
         setDuePayments(propDuePayments);
+        setIsLoading(false);
       } else {
         try {
           // Get due payments from Supabase
-          // This would typically be a separate API call to get upcoming payments
-          // For now, we'll use default due payments
-          setDuePayments([
-            {
-              id: "5",
-              dueDate: "2023-09-15",
-              amount: 275,
-              description: "September Tuition Fee",
-              category: "Tuition",
-            },
-            {
-              id: "6",
-              dueDate: "2023-09-30",
-              amount: 50,
-              description: "Art Supplies Fee",
-              category: "Supplies",
-            },
-            {
-              id: "7",
-              dueDate: "2023-08-30",
-              amount: 100,
-              description: "Field Trip Fee",
-              daysOverdue: 7,
-              category: "Activities",
-            },
-          ]);
+          const parentId = user?.id;
+          if (parentId) {
+            // Get payments with status 'pending' or 'overdue'
+            const { data: pendingData, error: pendingError } = await getPayments(
+              parentId,
+              'pending'
+            );
+
+            const { data: overdueData, error: overdueError } = await getPayments(
+              parentId,
+              'overdue'
+            );
+
+            if (pendingError) throw new Error(pendingError.message);
+            if (overdueError) throw new Error(overdueError.message);
+
+            const duePaymentsData: DuePayment[] = [];
+
+            // Process pending payments
+            if (pendingData && pendingData.length > 0) {
+              pendingData.forEach(payment => {
+                duePaymentsData.push({
+                  id: payment.id,
+                  dueDate: payment.due_date || payment.date,
+                  amount: payment.amount,
+                  description: payment.payment_type,
+                  category: payment.category || 'Other',
+                });
+              });
+            }
+
+            // Process overdue payments
+            if (overdueData && overdueData.length > 0) {
+              overdueData.forEach(payment => {
+                const dueDate = new Date(payment.due_date || payment.date);
+                const today = new Date();
+                const diffTime = Math.abs(today.getTime() - dueDate.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                duePaymentsData.push({
+                  id: payment.id,
+                  dueDate: payment.due_date || payment.date,
+                  amount: payment.amount,
+                  description: payment.payment_type,
+                  category: payment.category || 'Other',
+                  daysOverdue: diffDays,
+                });
+              });
+            }
+
+            if (duePaymentsData.length > 0) {
+              setDuePayments(duePaymentsData);
+            } else {
+              // If no due payments found, use empty array
+              setDuePayments([]);
+            }
+          }
         } catch (err: any) {
           console.error("Error fetching due payments:", err);
-          // Fallback to default due payments
-          setDuePayments([
-            {
-              id: "5",
-              dueDate: "2023-09-15",
-              amount: 275,
-              description: "September Tuition Fee",
-              category: "Tuition",
-            },
-          ]);
+          setError("Failed to load due payments. Please try again later.");
+          // Fallback to empty array
+          setDuePayments([]);
         } finally {
           setIsLoading(false);
         }
@@ -252,22 +246,73 @@ const PaymentSection = ({
     fetchPayments();
   }, [propPaymentHistory, propDuePayments, user]);
 
-  // Filter payment history based on search and status
+  // Toggle sort order
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+  };
+
+  // Change sort field
+  const changeSortField = (field: "date" | "amount" | "description") => {
+    if (sortField === field) {
+      toggleSortOrder();
+    } else {
+      setSortField(field);
+      setSortOrder("desc"); // Default to descending when changing fields
+    }
+  };
+
+  // Filter payment history based on search, status, category, and date range
   const filteredHistory = paymentHistory.filter((payment) => {
-    const matchesSearch = payment.description
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
+    // Apply search filter
+    const matchesSearch =
+      payment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.method?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.id.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Apply status filter
     const matchesStatus =
       filterStatus === "all" || payment.status === filterStatus;
-    return matchesSearch && matchesStatus;
+
+    // Apply category filter
+    const matchesCategory =
+      filterCategory === "all" ||
+      ((payment as any).category?.toLowerCase() === filterCategory.toLowerCase());
+
+    // Apply date filters
+    const paymentDate = new Date(payment.date);
+    const matchesStartDate = !startDate || paymentDate >= startDate;
+    const matchesEndDate = !endDate || paymentDate <= endDate;
+
+    return matchesSearch && matchesStatus && matchesCategory && matchesStartDate && matchesEndDate;
   });
 
-  // Sort payment history by date
+  // Sort payment history by selected field
   const sortedHistory = [...filteredHistory].sort((a, b) => {
-    const dateA = new Date(a.date).getTime();
-    const dateB = new Date(b.date).getTime();
-    return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+    if (sortField === "date") {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+    } else if (sortField === "amount") {
+      return sortOrder === "asc" ? a.amount - b.amount : b.amount - a.amount;
+    } else {
+      // Sort by description
+      return sortOrder === "asc"
+        ? a.description.localeCompare(b.description)
+        : b.description.localeCompare(a.description);
+    }
   });
+
+  // Paginate the filtered payments
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  const paginatedPayments = sortedHistory.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterCategory, startDate, endDate]);
 
   // Calculate total paid and due amounts
   const totalPaid = paymentHistory
@@ -291,64 +336,58 @@ const PaymentSection = ({
     setIsReceiptDialogOpen(true);
   };
 
-  // Toggle sort order
-  const toggleSortOrder = () => {
-    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+  // This function is already defined above
+  // Removing duplicate declaration
+
+  // Handle payment success
+  const handlePaymentSuccess = (transactionId: string) => {
+    if (!selectedPayment) return;
+
+    // Track successful payment
+    trackPaymentSuccess(
+      selectedPayment.amount,
+      'credit_card', // This would be dynamic in a real implementation
+      transactionId,
+      selectedPayment.description,
+      { category: selectedPayment.category }
+    );
+
+    // Add to payment history (in a real app, we would fetch the updated list)
+    const newPayment: Payment = {
+      id: transactionId,
+      date: new Date().toISOString().split('T')[0],
+      amount: selectedPayment.amount,
+      status: 'paid',
+      description: selectedPayment.description,
+      method: 'Credit Card',
+      receiptUrl: transactionId,
+    };
+
+    setPaymentHistory(prev => [newPayment, ...prev]);
+
+    // Remove from due payments
+    setDuePayments(prev => prev.filter(p => p.id !== selectedPayment.id));
+
+    // Close payment dialog
+    setIsPaymentDialogOpen(false);
+
+    // Show receipt
+    setReceiptTransactionId(transactionId);
+    setIsReceiptDialogOpen(true);
   };
 
-  // Process payment
-  const processPayment = async () => {
-    if (!selectedPayment) return;
-    
-    setIsProcessingPayment(true);
-    
-    try {
-      // In a real app, this would connect to a payment processor
-      // For now, we'll simulate a successful payment
-      
-      // Add payment to database
-      const paymentData = {
-        parent_id: user?.id,
-        amount: selectedPayment.amount,
-        date: new Date().toISOString().split('T')[0],
-        description: selectedPayment.description,
-        payment_method: paymentMethod === 'credit-card' ? 'Credit Card' : 
-                        paymentMethod === 'bank-transfer' ? 'Bank Transfer' : 'PayPal',
-        status: 'paid'
-      };
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Add to payment history
-      const newPayment: Payment = {
-        id: Date.now().toString(),
-        date: new Date().toISOString().split('T')[0],
-        amount: selectedPayment.amount,
-        status: 'paid',
-        description: selectedPayment.description,
-        method: paymentMethod === 'credit-card' ? 'Credit Card' : 
-                paymentMethod === 'bank-transfer' ? 'Bank Transfer' : 'PayPal',
-      };
-      
-      setPaymentHistory(prev => [newPayment, ...prev]);
-      
-      // Remove from due payments
-      setDuePayments(prev => prev.filter(p => p.id !== selectedPayment.id));
-      
-      // Close dialog
-      setIsPaymentDialogOpen(false);
-      
-      // Reset form
-      setCardNumber('');
-      setExpiryDate('');
-      setCvv('');
-      
-    } catch (err) {
-      console.error("Error processing payment:", err);
-      // Show error message
-    } finally {
-      setIsProcessingPayment(false);
+  // Handle payment error
+  const handlePaymentError = (error: string) => {
+    console.error("Payment error:", error);
+
+    if (selectedPayment) {
+      // Track failed payment
+      trackPaymentFailed(
+        selectedPayment.amount,
+        'credit_card', // This would be dynamic in a real implementation
+        error,
+        { description: selectedPayment.description }
+      );
     }
   };
 
@@ -368,7 +407,7 @@ const PaymentSection = ({
       <div className="w-full bg-white p-6 rounded-lg shadow-sm">
         <div className="text-center text-red-500 p-4">
           <p>{error}</p>
-          <button 
+          <button
             className="mt-2 text-primary hover:underline"
             onClick={() => window.location.reload()}
           >
@@ -538,51 +577,213 @@ const PaymentSection = ({
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Select
-                    defaultValue="all"
-                    onValueChange={(value) => setFilterStatus(value)}
-                  >
-                    <SelectTrigger className="w-full sm:w-[150px]">
-                      <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4" />
-                        <SelectValue placeholder="Filter" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="overdue">Overdue</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select
+                      value={filterStatus}
+                      onValueChange={(value) => setFilterStatus(value)}
+                    >
+                      <SelectTrigger className="w-full sm:w-[130px]">
+                        <div className="flex items-center gap-2">
+                          <Filter className="h-4 w-4" />
+                          <SelectValue placeholder="Status" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsAdvancedFilterOpen(!isAdvancedFilterOpen)}
+                      className={isAdvancedFilterOpen ? "bg-blue-50" : ""}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
+              {isAdvancedFilterOpen && (
+                <div className="mb-6 p-4 border rounded-md bg-slate-50">
+                  <h3 className="font-medium mb-3">Advanced Filters</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Category</Label>
+                      <Select
+                        value={filterCategory}
+                        onValueChange={setFilterCategory}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          <SelectItem value="tuition">Tuition</SelectItem>
+                          <SelectItem value="supplies">Supplies</SelectItem>
+                          <SelectItem value="activities">Activities</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Items per page</Label>
+                      <Select
+                        value={itemsPerPage.toString()}
+                        onValueChange={(value) => setItemsPerPage(parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Items per page" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 items</SelectItem>
+                          <SelectItem value="10">10 items</SelectItem>
+                          <SelectItem value="20">20 items</SelectItem>
+                          <SelectItem value="50">50 items</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Start Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !startDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {startDate ? format(startDate, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <CalendarComponent
+                            mode="single"
+                            selected={startDate}
+                            onSelect={setStartDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>End Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !endDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {endDate ? format(endDate, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <CalendarComponent
+                            mode="single"
+                            selected={endDate}
+                            onSelect={setEndDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end mt-4 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFilterCategory("all");
+                        setStartDate(undefined);
+                        setEndDate(undefined);
+                        setItemsPerPage(5);
+                      }}
+                    >
+                      Reset Filters
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {isLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : error ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Description</TableHead>
                     <TableHead>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={toggleSortOrder}
+                        onClick={() => changeSortField("description")}
+                        className="flex items-center gap-1 p-0 h-auto font-medium"
+                      >
+                        Description
+                        {sortField === "description" && (
+                          <ArrowUpDown className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => changeSortField("date")}
                         className="flex items-center gap-1 p-0 h-auto font-medium"
                       >
                         Date
-                        <ArrowUpDown className="h-3 w-3" />
+                        {sortField === "date" && (
+                          <ArrowUpDown className="h-3 w-3" />
+                        )}
                       </Button>
                     </TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => changeSortField("amount")}
+                        className="flex items-center gap-1 p-0 h-auto font-medium"
+                      >
+                        Amount
+                        {sortField === "amount" && (
+                          <ArrowUpDown className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedHistory.length > 0 ? (
-                    sortedHistory.map((payment) => (
+                  {filteredHistory.length > 0 ? (
+                    paginatedPayments.map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell className="font-medium">
                           {payment.description}
@@ -635,15 +836,78 @@ const PaymentSection = ({
                   )}
                 </TableBody>
               </Table>
+
+              {/* Pagination Controls */}
+              {filteredHistory.length > 0 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredHistory.length)} of {filteredHistory.length} entries
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="text-sm">
+                      Page {currentPage} of {totalPages || 1}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+                </>
+              )}
             </CardContent>
             <CardFooter className="flex justify-between border-t pt-4">
               <p className="text-sm text-gray-500">
-                Showing {sortedHistory.length} of {paymentHistory.length}{" "}
-                payments
+                Total payments: {paymentHistory.length}
               </p>
-              <Button variant="outline" size="sm">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Generate CSV content
+                  const headers = ["Date", "Description", "Amount", "Method", "Status"];
+                  const rows = filteredHistory.map(p => [
+                    new Date(p.date).toLocaleDateString(),
+                    p.description,
+                    p.amount.toFixed(2),
+                    p.method || "",
+                    p.status
+                  ]);
+
+                  const csvContent = [
+                    headers.join(","),
+                    ...rows.map(row => row.join(","))
+                  ].join("\n");
+
+                  // Create a blob and download link
+                  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", url);
+                  link.setAttribute("download", `payment_history_${new Date().toISOString().split("T")[0]}.csv`);
+                  link.style.visibility = "hidden";
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+              >
                 <Download className="mr-2 h-4 w-4" />
-                Export History
+                Export CSV
               </Button>
             </CardFooter>
           </Card>
@@ -653,155 +917,42 @@ const PaymentSection = ({
       {/* Payment Dialog */}
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Make a Payment</DialogTitle>
-            <DialogDescription>
-              Complete your payment for {selectedPayment?.description}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="amount" className="text-right">
-                Amount
-              </Label>
-              <div className="col-span-3 relative">
-                <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  id="amount"
-                  value={selectedPayment?.amount.toFixed(2)}
-                  className="pl-8"
-                  readOnly
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="method" className="text-right">
-                Payment Method
-              </Label>
-              <Select 
-                defaultValue="credit-card"
-                onValueChange={setPaymentMethod}
-                value={paymentMethod}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="credit-card">Credit Card</SelectItem>
-                  <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="paypal">PayPal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="card-number" className="text-right">
-                Card Number
-              </Label>
-              <Input
-                id="card-number"
-                placeholder="**** **** **** ****"
-                className="col-span-3"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="expiry" className="text-right">
-                Expiry Date
-              </Label>
-              <Input 
-                id="expiry" 
-                placeholder="MM/YY" 
-                className="col-span-1"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-              />
-              <Label htmlFor="cvv" className="text-right">
-                CVV
-              </Label>
-              <Input 
-                id="cvv" 
-                placeholder="***" 
-                className="col-span-1"
-                value={cvv}
-                onChange={(e) => setCvv(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" disabled={isProcessingPayment}>Cancel</Button>
-            </DialogClose>
-            <Button 
-              type="submit" 
-              onClick={processPayment}
-              disabled={isProcessingPayment}
-            >
-              {isProcessingPayment ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Process Payment'
-              )}
-            </Button>
-          </DialogFooter>
+          {selectedPayment && (
+            <PaymentForm
+              amount={selectedPayment.amount}
+              description={selectedPayment.description}
+              onSuccess={handlePaymentSuccess}
+              onError={handlePaymentError}
+              onCancel={() => setIsPaymentDialogOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Receipt Dialog */}
       <Dialog open={isReceiptDialogOpen} onOpenChange={setIsReceiptDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Payment Receipt</DialogTitle>
-            <DialogDescription>
-              Receipt for {selectedReceipt?.description}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="border rounded-md p-4 space-y-4">
-            <div className="flex justify-between border-b pb-2">
-              <div className="font-bold text-lg">Ninio Kindergarten</div>
-              <div className="text-gray-500">
-                Receipt #{selectedReceipt?.id}
-              </div>
+          {receiptTransactionId ? (
+            <PaymentReceipt
+              transactionId={receiptTransactionId}
+              onClose={() => setIsReceiptDialogOpen(false)}
+            />
+          ) : selectedReceipt ? (
+            <PaymentReceipt
+              transactionId={selectedReceipt.id}
+              onClose={() => setIsReceiptDialogOpen(false)}
+            />
+          ) : (
+            <div className="p-4 text-center">
+              <p>Receipt not found</p>
+              <Button
+                onClick={() => setIsReceiptDialogOpen(false)}
+                className="mt-4"
+              >
+                Close
+              </Button>
             </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Date:</span>
-                <span>{selectedReceipt?.date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Description:</span>
-                <span>{selectedReceipt?.description}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Payment Method:</span>
-                <span>{selectedReceipt?.method}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Status:</span>
-                <Badge variant="default">Paid</Badge>
-              </div>
-              <div className="flex justify-between border-t pt-2 mt-2">
-                <span className="font-bold">Total Amount:</span>
-                <span className="font-bold">
-                  ${selectedReceipt?.amount.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="w-full sm:w-auto">
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
-            </Button>
-            <Button variant="outline" className="w-full sm:w-auto">
-              <FileText className="mr-2 h-4 w-4" />
-              Print Receipt
-            </Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

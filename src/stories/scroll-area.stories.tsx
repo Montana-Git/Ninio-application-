@@ -1,8 +1,9 @@
 // [build] library: 'shadcn'
-import React from "react";
+
 
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Separator } from "../components/ui/separator";
+import { Fragment } from "react";
 
 const meta = {
   title: "ui/ScrollArea",
@@ -20,12 +21,12 @@ export const Base = {
         {Array.from({ length: 50 })
           .map((_, i, a) => `v1.2.0-beta.${a.length - i}`)
           .map((tag) => (
-            <React.Fragment>
-              <div className="text-sm" key={tag}>
+            <Fragment key={tag}>
+              <div className="text-sm">
                 {tag}
               </div>
               <Separator className="my-2" />
-            </React.Fragment>
+            </Fragment>
           ))}
       </div>
     </ScrollArea>

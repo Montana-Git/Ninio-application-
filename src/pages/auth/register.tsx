@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -6,6 +6,9 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import ErrorMessage from "@/components/ui/error-message";
+import SuccessMessage from "@/components/ui/success-message";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +81,7 @@ const RegisterPage = () => {
   const [childrenCount, setChildrenCount] = useState(0);
   const [childrenNames, setChildrenNames] = useState<string[]>([]);
   const [registerError, setRegisterError] = useState("");
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -140,7 +144,15 @@ const RegisterPage = () => {
 
       if (error) {
         console.error("Registration error:", error);
-        if (error.message) {
+
+        // Handle different error types with more specific messages
+        if (error.message?.includes("already registered") || error.message?.includes("already exists")) {
+          setRegisterError("This email is already registered. Please use a different email or try to log in.");
+        } else if (error.message?.includes("password") && error.message?.includes("strong")) {
+          setRegisterError("Please use a stronger password. Include uppercase, lowercase, numbers, and special characters.");
+        } else if (error.message?.includes("network") || error.message?.includes("connection")) {
+          setRegisterError("Network error. Please check your internet connection and try again.");
+        } else if (error.message) {
           setRegisterError(error.message);
         } else {
           setRegisterError("Registration failed. Please try again.");
@@ -148,11 +160,8 @@ const RegisterPage = () => {
         return;
       }
 
-      // Redirect to login page after successful registration
-      // Add a small delay to allow the user to see the success message
-      setTimeout(() => {
-        window.location.href = "/auth/login";
-      }, 1500);
+      // Show success message with email verification instructions
+      setRegistrationSuccess(true);
     } catch (error: any) {
       console.error("Registration error:", error);
       setRegisterError(error?.message || "An unexpected error occurred");
@@ -184,11 +193,31 @@ const RegisterPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
+            {registrationSuccess ? (
+              <div className="space-y-4">
+                <SuccessMessage
+                  title="Registration Successful!"
+                  message="We've sent a verification email to your inbox. Please check your email and click the verification link to activate your account."
+                />
+                <p className="text-sm text-gray-600">
+                  If you don't see the email, please check your spam folder.
+                </p>
+                <div className="mt-4">
+                  <Link
+                    to="/auth/login"
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+                  >
+                    Go to Login
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-4"
+                >
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -313,12 +342,13 @@ const RegisterPage = () => {
                           <FormControl>
                             <input
                               type="radio"
+                              id="role-parent"
                               checked={field.value === "parent"}
                               onChange={() => field.onChange("parent")}
                               className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
                             />
                           </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
+                          <FormLabel htmlFor="role-parent" className="font-normal cursor-pointer">
                             {t("auth.register.roleParent")}
                           </FormLabel>
                         </div>
@@ -332,12 +362,13 @@ const RegisterPage = () => {
                           <FormControl>
                             <input
                               type="radio"
+                              id="role-admin"
                               checked={field.value === "admin"}
                               onChange={() => field.onChange("admin")}
                               className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
                             />
                           </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
+                          <FormLabel htmlFor="role-admin" className="font-normal cursor-pointer">
                             {t("auth.register.roleAdmin")}
                           </FormLabel>
                         </div>
@@ -423,7 +454,7 @@ const RegisterPage = () => {
                 />
 
                 {registerError && (
-                  <div className="text-red-500 text-sm">{registerError}</div>
+                  <ErrorMessage message={registerError} className="mb-4" />
                 )}
 
                 <Button
@@ -432,16 +463,14 @@ const RegisterPage = () => {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      {t("auth.register.submitting")}
-                    </div>
+                    <LoadingSpinner size="sm" text={t("auth.register.submitting")} />
                   ) : (
                     t("auth.register.submit")
                   )}
                 </Button>
               </form>
             </Form>
+            )}
           </CardContent>
           <CardFooter className="flex justify-center">
             <div className="text-sm text-gray-600">

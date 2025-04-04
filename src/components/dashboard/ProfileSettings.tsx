@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -75,7 +75,7 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
   const [currentLanguage, setCurrentLanguage] = useState(getCurrentLanguage());
 
   // Fetch user preferences on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     if (user) {
       const fetchPreferences = async () => {
         const { data } = await getUserPreferences(user.id);

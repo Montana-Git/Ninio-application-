@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Lock } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import ErrorMessage from "@/components/ui/error-message";
+import SuccessMessage from "@/components/ui/success-message";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,15 +58,14 @@ const ResetPasswordPage = () => {
   const onSubmit = async (data: ResetPasswordFormValues) => {
     setIsLoading(true);
     setError("");
-    
+
     try {
-      // Get the hash from the URL
-      const hash = window.location.hash.substring(1);
-      const query = new URLSearchParams(hash);
-      const accessToken = query.get('access_token');
-      
-      if (!accessToken) {
-        throw new Error("No access token found. Please request a new password reset link.");
+      // The session should already be established by Supabase's redirect
+      // We just need to update the user's password
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      if (!sessionData.session) {
+        throw new Error("Your password reset link has expired or is invalid. Please request a new password reset link.");
       }
 
       // Update the user's password
@@ -76,12 +78,12 @@ const ResetPasswordPage = () => {
       }
 
       setIsSuccess(true);
-      
+
       // Redirect to login after 3 seconds
       setTimeout(() => {
         navigate('/auth/login');
       }, 3000);
-      
+
     } catch (error: any) {
       console.error("Password reset error:", error);
       setError(error.message || "Failed to reset password. Please try again.");
@@ -111,13 +113,10 @@ const ResetPasswordPage = () => {
           </CardHeader>
           <CardContent>
             {isSuccess ? (
-              <Alert className="bg-green-50 border-green-200">
-                <Lock className="h-4 w-4 text-green-600" />
-                <AlertTitle className="text-green-800">Password reset successful</AlertTitle>
-                <AlertDescription className="text-green-700">
-                  Your password has been reset successfully. You will be redirected to the login page in a few seconds.
-                </AlertDescription>
-              </Alert>
+              <SuccessMessage
+                title="Password reset successful"
+                message="Your password has been reset successfully. You will be redirected to the login page in a few seconds."
+              />
             ) : (
               <Form {...form}>
                 <form
@@ -161,33 +160,11 @@ const ResetPasswordPage = () => {
                   />
 
                   {error && (
-                    <p className="text-sm text-red-500 mb-2">{error}</p>
+                    <ErrorMessage message={error} className="mb-4" />
                   )}
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <svg
-                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        Resetting...
-                      </span>
+                      <LoadingSpinner size="sm" text="Resetting..." />
                     ) : (
                       <span className="flex items-center gap-2">
                         Reset Password

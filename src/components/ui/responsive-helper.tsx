@@ -1,4 +1,4 @@
-import React from "react";
+
 
 /**
  * A component that displays the current breakpoint for development purposes

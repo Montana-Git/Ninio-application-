@@ -1,9 +1,10 @@
 import { Suspense, lazy } from "react";
-import { useRoutes, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./components/home";
-import routes from "tempo-routes";
 import { useAuth } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { AnalyticsProvider } from "./contexts/AnalyticsContext";
+import { ErrorBoundary } from "./components/ui/error-boundary";
 
 // Lazy load pages for better performance
 const LoginPage = lazy(() => import("./pages/auth/login"));
@@ -17,6 +18,9 @@ const ParentProfilePage = lazy(
 const AdminDashboard = lazy(() => import("./pages/dashboard/admin"));
 const AdminProfilePage = lazy(() => import("./pages/dashboard/admin/profile"));
 const ProgramsPage = lazy(() => import("./pages/programs"));
+const FileUploadPage = lazy(() => import("./pages/dashboard/parent/file-upload"));
+const ReportsPage = lazy(() => import("./pages/dashboard/parent/reports"));
+const NotificationSettingsPage = lazy(() => import("./pages/dashboard/parent/notification-settings"));
 
 // Protected route component
 const ProtectedRoute = ({
@@ -53,15 +57,23 @@ const ProtectedRoute = ({
 };
 
 function App() {
+  const { user } = useAuth();
+
   return (
-    <NotificationProvider>
-      <Suspense
-        fallback={
-          <div className="flex h-screen w-screen items-center justify-center">
-            <p>Loading...</p>
-          </div>
-        }
-      >
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('App Error:', error, errorInfo);
+      }}
+    >
+      <NotificationProvider>
+        <AnalyticsProvider>
+          <Suspense
+            fallback={
+              <div className="flex h-screen w-screen items-center justify-center">
+                <p>Loading...</p>
+              </div>
+            }
+          >
         <>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -84,6 +96,30 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="parent">
                   <ParentProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/parent/files"
+              element={
+                <ProtectedRoute requiredRole="parent">
+                  <FileUploadPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/parent/reports"
+              element={
+                <ProtectedRoute requiredRole="parent">
+                  <ReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/parent/notification-settings"
+              element={
+                <ProtectedRoute requiredRole="parent">
+                  <NotificationSettingsPage />
                 </ProtectedRoute>
               }
             />
@@ -116,10 +152,12 @@ function App() {
             {/* Redirect to login by default */}
             <Route path="*" element={<Navigate to="/auth/login" replace />} />
           </Routes>
-          {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+          {/* Tempo routes removed */}
         </>
-      </Suspense>
-    </NotificationProvider>
+          </Suspense>
+        </AnalyticsProvider>
+      </NotificationProvider>
+    </ErrorBoundary>
   );
 }
 

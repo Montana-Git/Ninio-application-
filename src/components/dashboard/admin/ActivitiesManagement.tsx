@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
 import { useForm } from "react-hook-form";
 

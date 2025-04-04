@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -58,8 +58,16 @@ import {
   Printer,
   Mail,
   Clock,
+  RotateCcw,
   Users,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
+import { getPayments, getUsers, getChildren, updatePaymentStatus, processRefund } from "@/lib/api";
+import { PaymentReceipt } from "@/components/ui/payment";
+import { PaymentStatus } from "@/services/payment-gateway-service";
+import paymentAnalyticsService from "@/services/payment-analytics-service";
+import { useAnalytics } from "@/contexts/AnalyticsContext";
 
 interface Payment {
   id: string;
@@ -91,7 +99,335 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
   const [sortField, setSortField] = useState<string>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-  // Mock data for default state
+  // State for real data
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [allPayments, setAllPayments] = useState<Payment[]>([]);
+  const [parents, setParents] = useState<{id: string; name: string}[]>([]);
+  const [children, setChildren] = useState<{id: string; name: string; parentId: string}[]>([]);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkAction, setBulkAction] = useState<"mark_paid" | "mark_pending" | "send_reminder" | null>(null);
+  const [receiptTransactionId, setReceiptTransactionId] = useState<string | null>(null);
+  const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+
+  // Use analytics
+  const { trackPaymentRefund } = useAnalytics();
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchPayments();
+    fetchParentsAndChildren();
+    fetchAnalyticsData();
+  }, []);
+
+  // Fetch payments from API
+  const fetchPayments = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await getPayments();
+
+      if (error) throw new Error(error.message);
+
+      if (data && data.length > 0) {
+        // Transform data to match our Payment interface
+        const formattedPayments = await Promise.all(data.map(async (payment) => {
+          // Get parent name
+          const parentName = parents.find(p => p.id === payment.parent_id)?.name || 'Unknown';
+
+          // Get child name
+          let childName = 'N/A';
+          if (payment.child_id) {
+            childName = children.find(c => c.id === payment.child_id)?.name || 'Unknown';
+          }
+
+          return {
+            id: payment.id,
+            parentName,
+            childName,
+            amount: payment.amount,
+            date: payment.date,
+            dueDate: payment.due_date,
+            status: payment.status as "paid" | "pending" | "overdue",
+            paymentType: payment.payment_type,
+            paymentMethod: payment.payment_method,
+            notes: payment.notes,
+            category: payment.category,
+          };
+        }));
+
+        setAllPayments(formattedPayments);
+      } else {
+        setAllPayments([]);
+      }
+    } catch (err) {
+      console.error('Error fetching payments:', err);
+      setError('Failed to load payments. Please try again.');
+      // Fallback to empty array
+      setAllPayments([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch parents and children
+  const fetchParentsAndChildren = async () => {
+    try {
+      // Get parents
+      const { data: parentsData, error: parentsError } = await getUsers('parent');
+
+      if (parentsError) throw new Error(parentsError.message);
+
+      if (parentsData) {
+        const formattedParents = parentsData.map(parent => ({
+          id: parent.id,
+          name: `${parent.first_name} ${parent.last_name}`,
+        }));
+        setParents(formattedParents);
+      }
+
+      // Get children
+      const { data: childrenData, error: childrenError } = await getChildren();
+
+      if (childrenError) throw new Error(childrenError.message);
+
+      if (childrenData) {
+        const formattedChildren = childrenData.map(child => ({
+          id: child.id,
+          name: `${child.first_name} ${child.last_name}`,
+          parentId: child.parent_id,
+        }));
+        setChildren(formattedChildren);
+      }
+    } catch (err) {
+      console.error('Error fetching parents and children:', err);
+    }
+  };
+
+  // Fetch analytics data
+  const fetchAnalyticsData = async () => {
+    setIsLoadingAnalytics(true);
+
+    try {
+      const [summary, methodDistribution, categoryDistribution, monthlyRevenue, statusDistribution, revenueForecast, trendAnalysis] =
+        await Promise.all([
+          paymentAnalyticsService.getPaymentAnalyticsSummary(),
+          paymentAnalyticsService.getPaymentMethodDistribution(),
+          paymentAnalyticsService.getPaymentCategoryDistribution(),
+          paymentAnalyticsService.getMonthlyRevenueData(),
+          paymentAnalyticsService.getPaymentStatusDistribution(),
+          paymentAnalyticsService.getRevenueForecast(),
+          paymentAnalyticsService.getPaymentTrendAnalysis(),
+        ]);
+
+      setAnalyticsData({
+        summary,
+        methodDistribution,
+        categoryDistribution,
+        monthlyRevenue,
+        statusDistribution,
+        revenueForecast,
+        trendAnalysis,
+      });
+    } catch (err) {
+      console.error('Error fetching analytics data:', err);
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  };
+
+  // Handle payment status update
+  const handleUpdateStatus = async (paymentId: string, newStatus: PaymentStatus) => {
+    setIsUpdatingStatus(true);
+
+    try {
+      const { data, error } = await updatePaymentStatus(paymentId, newStatus);
+
+      if (error) throw new Error(error.message);
+
+      // Update local state
+      setAllPayments(prev =>
+        prev.map(payment =>
+          payment.id === paymentId
+            ? { ...payment, status: newStatus as "paid" | "pending" | "overdue" }
+            : payment
+        )
+      );
+
+      // Refresh analytics
+      fetchAnalyticsData();
+
+    } catch (err) {
+      console.error('Error updating payment status:', err);
+      alert('Failed to update payment status. Please try again.');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Handle payment refund
+  const handleRefund = async (paymentId: string, amount: number) => {
+    if (!confirm(`Are you sure you want to refund $${amount.toFixed(2)}?`)) return;
+
+    setIsRefunding(true);
+
+    try {
+      const { data, error } = await processRefund(paymentId, amount);
+
+      if (error) throw new Error(error.message);
+
+      // Update local state
+      setAllPayments(prev =>
+        prev.map(payment =>
+          payment.id === paymentId
+            ? { ...payment, status: "refunded" as "paid" | "pending" | "overdue" }
+            : payment
+        )
+      );
+
+      // Track refund in analytics
+      trackPaymentRefund(amount, paymentId, 'Admin initiated refund');
+
+      // Refresh analytics
+      fetchAnalyticsData();
+
+      alert('Refund processed successfully.');
+
+    } catch (err) {
+      console.error('Error processing refund:', err);
+      alert('Failed to process refund. Please try again.');
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
+  // Handle bulk payment operations
+  const handleBulkAction = async () => {
+    if (!bulkAction || selectedPayments.length === 0) return;
+
+    if (!confirm(`Are you sure you want to ${bulkAction.replace('_', ' ')} ${selectedPayments.length} payments?`)) return;
+
+    setIsBulkProcessing(true);
+
+    try {
+      // Process based on action type
+      if (bulkAction === 'mark_paid' || bulkAction === 'mark_pending') {
+        // Determine the new status
+        const newStatus: PaymentStatus = bulkAction === 'mark_paid' ? 'paid' : 'pending';
+
+        // Update each payment status
+        const updatePromises = selectedPayments.map(paymentId => {
+          return updatePaymentStatus(paymentId, newStatus);
+        });
+
+        // Wait for all updates to complete
+        await Promise.all(updatePromises);
+
+        // Update local state
+        setAllPayments(prev =>
+          prev.map(payment =>
+            selectedPayments.includes(payment.id)
+              ? { ...payment, status: newStatus as "paid" | "pending" | "overdue" }
+              : payment
+          )
+        );
+
+        alert(`Successfully updated ${selectedPayments.length} payments to ${newStatus}.`);
+      }
+      else if (bulkAction === 'send_reminder') {
+        // Get the selected payments
+        const paymentsToRemind = allPayments.filter(p => selectedPayments.includes(p.id));
+
+        // Group by parent for efficient notification
+        const parentGroups: Record<string, {parentName: string, payments: Payment[]}> = {};
+
+        paymentsToRemind.forEach(payment => {
+          if (!parentGroups[payment.parentName]) {
+            parentGroups[payment.parentName] = {
+              parentName: payment.parentName,
+              payments: []
+            };
+          }
+          parentGroups[payment.parentName].payments.push(payment);
+        });
+
+        // Send reminders to each parent
+        for (const parentName in parentGroups) {
+          const group = parentGroups[parentName];
+          const totalAmount = group.payments.reduce((sum, p) => sum + p.amount, 0);
+
+          // In a real app, this would send an email or notification
+          console.log(`Sending reminder to ${parentName} for ${group.payments.length} payments totaling $${totalAmount.toFixed(2)}`);
+        }
+
+        alert(`Payment reminders sent to ${Object.keys(parentGroups).length} parents for ${selectedPayments.length} payments.`);
+      }
+
+      // Clear selection after processing
+      setSelectedPayments([]);
+
+      // Refresh analytics
+      fetchAnalyticsData();
+
+    } catch (err) {
+      console.error(`Error processing bulk action ${bulkAction}:`, err);
+      alert(`Failed to process bulk action. Please try again.`);
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkAction(null);
+    }
+  };
+
+  // Handle view receipt
+  const handleViewReceipt = (paymentId: string) => {
+    setReceiptTransactionId(paymentId);
+    setIsReceiptDialogOpen(true);
+  };
+
+  // Use real data instead of mock data
+  const displayPayments = allPayments.filter((payment) => {
+    // Apply search filter
+    const matchesSearch =
+      payment.parentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.childName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.paymentType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.category?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Apply status filter
+    const matchesStatus = filterStatus === "all" || payment.status === filterStatus;
+
+    // Apply category filter
+    const matchesCategory =
+      filterCategory === "all" ||
+      payment.category?.toLowerCase() === filterCategory.toLowerCase();
+
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
+
+  // Sort payments
+  const sortedPayments = [...displayPayments].sort((a, b) => {
+    if (sortField === "date") {
+      return sortDirection === "asc"
+        ? new Date(a.date).getTime() - new Date(b.date).getTime()
+        : new Date(b.date).getTime() - new Date(a.date).getTime();
+    } else if (sortField === "amount") {
+      return sortDirection === "asc"
+        ? a.amount - b.amount
+        : b.amount - a.amount;
+    } else if (sortField === "parent") {
+      return sortDirection === "asc"
+        ? a.parentName.localeCompare(b.parentName)
+        : b.parentName.localeCompare(a.parentName);
+    }
+    return 0;
+  });
+
+  // For backward compatibility
   const defaultPayments: Payment[] = [
     {
       id: "1",
@@ -177,10 +513,8 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
     },
   ];
 
-  const displayPayments = payments.length > 0 ? payments : defaultPayments;
-
   // Filter payments based on search query and filters
-  const filteredPayments = displayPayments.filter((payment) => {
+  const filteredPayments = (payments.length > 0 ? payments : defaultPayments).filter((payment) => {
     const matchesSearch =
       payment.parentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       payment.childName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -197,7 +531,7 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
   });
 
   // Sort payments
-  const sortedPayments = [...filteredPayments].sort((a, b) => {
+  const sortedFilteredPayments = [...filteredPayments].sort((a, b) => {
     let comparison = 0;
 
     if (sortField === "date") {
@@ -258,21 +592,19 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
     setIsReminderDialogOpen(true);
   };
 
-  const handleSelectPayment = (id: string) => {
-    setSelectedPayments((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((paymentId) => paymentId !== id);
-      } else {
-        return [...prev, id];
-      }
-    });
+  const handleSelectPayment = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedPayments(prev => [...prev, id]);
+    } else {
+      setSelectedPayments(prev => prev.filter(paymentId => paymentId !== id));
+    }
   };
 
-  const handleSelectAll = () => {
-    if (selectedPayments.length === sortedPayments.length) {
-      setSelectedPayments([]);
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedPayments(sortedFilteredPayments.map((p) => p.id));
     } else {
-      setSelectedPayments(sortedPayments.map((p) => p.id));
+      setSelectedPayments([]);
     }
   };
 
@@ -300,52 +632,100 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
           <Card className="w-full">
             <CardHeader className="pb-0">
               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search payments..."
-                      className="pl-8 w-full sm:w-[250px]"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                <div className="flex flex-col sm:flex-row gap-3 justify-between">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search payments..."
+                        className="pl-8 w-full sm:w-[250px]"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Select
+                        defaultValue="all"
+                        onValueChange={(value) => setFilterStatus(value)}
+                      >
+                        <SelectTrigger className="w-full sm:w-[150px]">
+                          <div className="flex items-center gap-2">
+                            <Filter className="h-4 w-4" />
+                            <SelectValue placeholder="Status" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="overdue">Overdue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        defaultValue="all"
+                        onValueChange={(value) => setFilterCategory(value)}
+                      >
+                        <SelectTrigger className="w-full sm:w-[150px]">
+                          <div className="flex items-center gap-2">
+                            <Filter className="h-4 w-4" />
+                            <SelectValue placeholder="Category" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          <SelectItem value="Tuition">Tuition</SelectItem>
+                          <SelectItem value="Supplies">Supplies</SelectItem>
+                          <SelectItem value="Activities">Activities</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Select
-                      defaultValue="all"
-                      onValueChange={(value) => setFilterStatus(value)}
-                    >
-                      <SelectTrigger className="w-full sm:w-[150px]">
-                        <div className="flex items-center gap-2">
-                          <Filter className="h-4 w-4" />
-                          <SelectValue placeholder="Status" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="overdue">Overdue</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      defaultValue="all"
-                      onValueChange={(value) => setFilterCategory(value)}
-                    >
-                      <SelectTrigger className="w-full sm:w-[150px]">
-                        <div className="flex items-center gap-2">
-                          <Filter className="h-4 w-4" />
-                          <SelectValue placeholder="Category" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        <SelectItem value="Tuition">Tuition</SelectItem>
-                        <SelectItem value="Supplies">Supplies</SelectItem>
-                        <SelectItem value="Activities">Activities</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+
+                  {/* Bulk Actions */}
+                  {selectedPayments.length > 0 && (
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-sm text-muted-foreground">
+                        {selectedPayments.length} selected
+                      </span>
+                      <Select
+                        value={bulkAction || ""}
+                        onValueChange={(value) => setBulkAction(value as any)}
+                        disabled={isBulkProcessing}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Bulk Actions" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mark_paid">Mark as Paid</SelectItem>
+                          <SelectItem value="mark_pending">Mark as Pending</SelectItem>
+                          <SelectItem value="send_reminder">Send Payment Reminder</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleBulkAction}
+                        disabled={!bulkAction || isBulkProcessing}
+                      >
+                        {isBulkProcessing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          "Apply"
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedPayments([])}
+                        disabled={isBulkProcessing}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm">
@@ -672,8 +1052,8 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
                           <TableCell>
                             <Checkbox
                               checked={selectedPayments.includes(payment.id)}
-                              onCheckedChange={() =>
-                                handleSelectPayment(payment.id)
+                              onCheckedChange={(checked) =>
+                                handleSelectPayment(payment.id, checked as boolean)
                               }
                             />
                           </TableCell>
@@ -733,12 +1113,35 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
                                 </Button>
                               ) : null}
                               {payment.status === "paid" && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => handleViewReceipt(payment.id)}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => handleRefund(payment.id, payment.amount)}
+                                    disabled={isRefunding}
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                              {payment.status === "pending" && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   className="h-8 w-8 p-0"
+                                  onClick={() => handleUpdateStatus(payment.id, "paid")}
+                                  disabled={isUpdatingStatus}
                                 >
-                                  <FileText className="h-4 w-4" />
+                                  <CheckCircle2 className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>
@@ -969,81 +1372,162 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
 
         <TabsContent value="analytics">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Payment Summary Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Payment Summary</CardTitle>
                 <CardDescription>Overview of payment status</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <div className="space-y-8">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium">Paid</div>
-                      <div className="text-sm text-muted-foreground">
-                        ${totalPaid.toFixed(2)} (
-                        {Math.round(
-                          (totalPaid /
-                            (totalPaid + totalPending + totalOverdue)) *
-                            100,
-                        )}
-                        %)
+                {isLoadingAnalytics ? (
+                  <div className="flex justify-center items-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : analyticsData?.statusDistribution ? (
+                  <div className="space-y-8">
+                    {analyticsData.statusDistribution.map((status) => {
+                      // Skip empty statuses
+                      if (status.count === 0) return null;
+
+                      // Calculate total for percentages
+                      const total = analyticsData.statusDistribution.reduce(
+                        (sum, s) => sum + s.amount, 0
+                      );
+
+                      // Determine color based on status
+                      let colorClass = "bg-gray-500";
+                      switch (status.status) {
+                        case "paid":
+                          colorClass = "bg-green-500";
+                          break;
+                        case "pending":
+                          colorClass = "bg-amber-500";
+                          break;
+                        case "overdue":
+                          colorClass = "bg-red-500";
+                          break;
+                        case "refunded":
+                          colorClass = "bg-blue-500";
+                          break;
+                        case "failed":
+                          colorClass = "bg-red-700";
+                          break;
+                      }
+
+                      return (
+                        <div key={status.status}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-sm font-medium">
+                              {status.status.charAt(0).toUpperCase() + status.status.slice(1)}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              ${status.amount.toFixed(2)} (
+                              {Math.round((status.amount / total) * 100)}%)
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${colorClass} rounded-full`}
+                              style={{
+                                width: `${Math.round((status.amount / total) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium">Paid</div>
+                        <div className="text-sm text-muted-foreground">
+                          ${totalPaid.toFixed(2)} (
+                          {Math.round(
+                            (totalPaid /
+                              (totalPaid + totalPending + totalOverdue)) *
+                              100,
+                          )}
+                          %)
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full"
+                          style={{
+                            width: `${Math.round((totalPaid / (totalPaid + totalPending + totalOverdue)) * 100)}%`,
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full"
-                        style={{
-                          width: `${Math.round((totalPaid / (totalPaid + totalPending + totalOverdue)) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium">Pending</div>
-                      <div className="text-sm text-muted-foreground">
-                        ${totalPending.toFixed(2)} (
-                        {Math.round(
-                          (totalPending /
-                            (totalPaid + totalPending + totalOverdue)) *
-                            100,
-                        )}
-                        %)
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium">Pending</div>
+                        <div className="text-sm text-muted-foreground">
+                          ${totalPending.toFixed(2)} (
+                          {Math.round(
+                            (totalPending /
+                              (totalPaid + totalPending + totalOverdue)) *
+                              100,
+                          )}
+                          %)
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded-full"
+                          style={{
+                            width: `${Math.round((totalPending / (totalPaid + totalPending + totalOverdue)) * 100)}%`,
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-amber-500 rounded-full"
-                        style={{
-                          width: `${Math.round((totalPending / (totalPaid + totalPending + totalOverdue)) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium">Overdue</div>
-                      <div className="text-sm text-muted-foreground">
-                        ${totalOverdue.toFixed(2)} (
-                        {Math.round(
-                          (totalOverdue /
-                            (totalPaid + totalPending + totalOverdue)) *
-                            100,
-                        )}
-                        %)
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium">Overdue</div>
+                        <div className="text-sm text-muted-foreground">
+                          ${totalOverdue.toFixed(2)} (
+                          {Math.round(
+                            (totalOverdue /
+                              (totalPaid + totalPending + totalOverdue)) *
+                              100,
+                          )}
+                          %)
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-red-500 rounded-full"
+                          style={{
+                            width: `${Math.round((totalOverdue / (totalPaid + totalPending + totalOverdue)) * 100)}%`,
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-red-500 rounded-full"
-                        style={{
-                          width: `${Math.round((totalOverdue / (totalPaid + totalPending + totalOverdue)) * 100)}%`,
-                        }}
-                      />
-                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
+              <CardFooter>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={fetchAnalyticsData}
+                  disabled={isLoadingAnalytics}
+                >
+                  {isLoadingAnalytics ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh Analytics
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
             </Card>
 
             <Card>
@@ -1052,47 +1536,68 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
                 <CardDescription>Breakdown by payment type</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-blue-500" />
-                      <span>Tuition</span>
-                    </div>
-                    <span className="font-medium">
-                      $
-                      {displayPayments
-                        .filter((p) => p.category === "Tuition")
-                        .reduce((sum, p) => sum + p.amount, 0)
-                        .toFixed(2)}
-                    </span>
+                {isLoadingAnalytics ? (
+                  <div className="h-[200px] flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-green-500" />
-                      <span>Supplies</span>
-                    </div>
-                    <span className="font-medium">
-                      $
-                      {displayPayments
-                        .filter((p) => p.category === "Supplies")
-                        .reduce((sum, p) => sum + p.amount, 0)
-                        .toFixed(2)}
-                    </span>
+                ) : analyticsData?.categoryDistribution ? (
+                  <div className="space-y-4">
+                    {analyticsData.categoryDistribution.slice(0, 5).map((category, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full ${index === 0 ? 'bg-blue-500' : index === 1 ? 'bg-green-500' : index === 2 ? 'bg-purple-500' : index === 3 ? 'bg-yellow-500' : 'bg-gray-500'}`} />
+                          <span>{category.category}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">${category.amount.toFixed(2)}</span>
+                          <span className="text-xs text-muted-foreground">({category.percentage.toFixed(1)}%)</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-purple-500" />
-                      <span>Activities</span>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full bg-blue-500" />
+                        <span>Tuition</span>
+                      </div>
+                      <span className="font-medium">
+                        $
+                        {displayPayments
+                          .filter((p) => p.category === "Tuition")
+                          .reduce((sum, p) => sum + p.amount, 0)
+                          .toFixed(2)}
+                      </span>
                     </div>
-                    <span className="font-medium">
-                      $
-                      {displayPayments
-                        .filter((p) => p.category === "Activities")
-                        .reduce((sum, p) => sum + p.amount, 0)
-                        .toFixed(2)}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full bg-green-500" />
+                        <span>Supplies</span>
+                      </div>
+                      <span className="font-medium">
+                        $
+                        {displayPayments
+                          .filter((p) => p.category === "Supplies")
+                          .reduce((sum, p) => sum + p.amount, 0)
+                          .toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full bg-purple-500" />
+                        <span>Activities</span>
+                      </div>
+                      <span className="font-medium">
+                        $
+                        {displayPayments
+                          .filter((p) => p.category === "Activities")
+                          .reduce((sum, p) => sum + p.amount, 0)
+                          .toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
               <CardFooter>
                 <Button variant="outline" className="w-full">
@@ -1100,6 +1605,218 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
                   Detailed Reports
                 </Button>
               </CardFooter>
+            </Card>
+
+            {/* Monthly Revenue Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Revenue</CardTitle>
+                <CardDescription>Revenue over the last 12 months</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                {isLoadingAnalytics ? (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : analyticsData?.monthlyRevenue ? (
+                  <div className="h-full w-full">
+                    <div className="h-full w-full flex flex-col">
+                      <div className="flex-1 grid grid-cols-12 gap-1">
+                        {analyticsData.monthlyRevenue.map((item, index) => {
+                          // Calculate bar height percentage based on max revenue
+                          const maxRevenue = Math.max(
+                            ...analyticsData.monthlyRevenue.map(d => d.revenue)
+                          );
+                          const heightPercentage = (item.revenue / maxRevenue) * 100;
+
+                          // Determine bar color based on trend
+                          let barColor = "bg-blue-500";
+                          if (item.trend && item.trend > 0) barColor = "bg-green-500";
+                          if (item.trend && item.trend < 0) barColor = "bg-red-500";
+
+                          return (
+                            <div key={index} className="flex flex-col items-center justify-end h-[200px]">
+                              <div
+                                className={`w-full ${barColor} rounded-t-sm relative group`}
+                                style={{ height: `${heightPercentage}%` }}
+                              >
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                  ${item.revenue.toLocaleString()}
+                                  {item.trend !== undefined && (
+                                    <span className={item.trend > 0 ? "text-green-400" : item.trend < 0 ? "text-red-400" : ""}>
+                                      {item.trend > 0 ? " +" : " "}{item.trend.toFixed(1)}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-xs mt-1 text-gray-600">
+                                {item.month.substring(0, 3)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-gray-100 rounded-md">
+                    <BarChart3 className="h-16 w-16 text-gray-400" />
+                    <span className="ml-2 text-gray-500">
+                      No revenue data available
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Revenue Forecast Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Forecast</CardTitle>
+                <CardDescription>Projected revenue for next 6 months</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                {isLoadingAnalytics ? (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : analyticsData?.revenueForecast ? (
+                  <div className="h-full w-full">
+                    <div className="h-full w-full flex flex-col">
+                      <div className="flex-1 grid grid-cols-6 gap-1">
+                        {analyticsData.revenueForecast.map((item, index) => {
+                          // Calculate bar height percentage based on max revenue
+                          const maxRevenue = Math.max(
+                            ...analyticsData.revenueForecast.map(d => d.upperBound || d.predicted)
+                          );
+                          const heightPercentage = (item.predicted / maxRevenue) * 100;
+                          const lowerBoundPercentage = ((item.lowerBound || item.predicted) / maxRevenue) * 100;
+                          const upperBoundPercentage = ((item.upperBound || item.predicted) / maxRevenue) * 100;
+
+                          return (
+                            <div key={index} className="flex flex-col items-center justify-end h-[200px]">
+                              {/* Confidence interval */}
+                              <div className="relative w-full" style={{ height: `${upperBoundPercentage}%` }}>
+                                <div
+                                  className="absolute bottom-0 left-0 w-full bg-blue-200 opacity-30"
+                                  style={{
+                                    height: `${upperBoundPercentage - lowerBoundPercentage}%`,
+                                  }}
+                                ></div>
+                                <div
+                                  className="absolute bottom-0 left-0 w-full bg-blue-600 rounded-t-sm"
+                                  style={{ height: `${heightPercentage}%` }}
+                                >
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    ${item.predicted.toLocaleString()}
+                                    <br />
+                                    <span className="text-xs opacity-75">
+                                      Range: ${item.lowerBound?.toLocaleString()} - ${item.upperBound?.toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs mt-1 text-gray-600 flex flex-col items-center">
+                                <span>{item.month.substring(0, 3)}</span>
+                                <span className="text-[10px] text-gray-400">{item.confidence}%</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-gray-100 rounded-md">
+                    <BarChart3 className="h-16 w-16 text-gray-400" />
+                    <span className="ml-2 text-gray-500">
+                      No forecast data available
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Trend Analysis Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Trends</CardTitle>
+                <CardDescription>Analysis of payment patterns</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingAnalytics ? (
+                  <div className="h-[200px] flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : analyticsData?.trendAnalysis ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Monthly Growth</h4>
+                        <div className="flex items-center">
+                          <span className={`text-2xl font-bold ${analyticsData.trendAnalysis.monthlyGrowthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(analyticsData.trendAnalysis.monthlyGrowthRate * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Yearly Projection</h4>
+                        <div className="flex items-center">
+                          <span className={`text-2xl font-bold ${analyticsData.trendAnalysis.yearlyGrowthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(analyticsData.trendAnalysis.yearlyGrowthRate * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Revenue Stability</h4>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${analyticsData.trendAnalysis.revenueStability * 100}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Unstable</span>
+                        <span>Stable</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Top Growth Categories</h4>
+                        <ul className="space-y-1">
+                          {analyticsData.trendAnalysis.topGrowthCategories.map((cat, idx) => (
+                            <li key={idx} className="text-sm flex justify-between">
+                              <span>{cat.category}</span>
+                              <span className="text-green-600">+{(cat.growthRate * 100).toFixed(1)}%</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Top Decline Categories</h4>
+                        <ul className="space-y-1">
+                          {analyticsData.trendAnalysis.topDeclineCategories.map((cat, idx) => (
+                            <li key={idx} className="text-sm flex justify-between">
+                              <span>{cat.category}</span>
+                              <span className="text-red-600">-{(cat.declineRate * 100).toFixed(1)}%</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-[200px] flex items-center justify-center bg-gray-100 rounded-md">
+                    <BarChart3 className="h-16 w-16 text-gray-400" />
+                    <span className="ml-2 text-gray-500">
+                      No trend data available
+                    </span>
+                  </div>
+                )}
+              </CardContent>
             </Card>
 
             <Card className="md:col-span-2">
@@ -1283,12 +2000,40 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
               Close
             </Button>
             {selectedPayment && selectedPayment.status === "paid" && (
-              <Button variant="outline">
+              <Button
+                variant="outline"
+                onClick={() => handleViewReceipt(selectedPayment.id)}
+              >
                 <FileText className="mr-2 h-4 w-4" />
                 View Receipt
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Dialog */}
+      <Dialog
+        open={isReceiptDialogOpen}
+        onOpenChange={setIsReceiptDialogOpen}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          {receiptTransactionId ? (
+            <PaymentReceipt
+              transactionId={receiptTransactionId}
+              onClose={() => setIsReceiptDialogOpen(false)}
+            />
+          ) : (
+            <div className="p-4 text-center">
+              <p>Receipt not found</p>
+              <Button
+                onClick={() => setIsReceiptDialogOpen(false)}
+                className="mt-4"
+              >
+                Close
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

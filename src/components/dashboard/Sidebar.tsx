@@ -1,15 +1,21 @@
-import React from "react";
+import { forwardRef } from "react";
+
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNotification } from "@/contexts/NotificationContext";
 import {
   Home,
   Calendar,
   CreditCard,
-  BookOpen,
   Settings,
   LogOut,
   User,
   Activity,
+  Upload,
+  BarChart2,
+  Bell,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,7 +26,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useAuth } from "@/contexts/AuthContext";
+
+interface MenuItem {
+  icon: React.ReactNode;
+  label: string;
+  path: string;
+  badge?: number;
+}
 
 interface SidebarProps {
   userName?: string;
@@ -29,7 +41,10 @@ interface SidebarProps {
 }
 
 // Logout button component
-const LogoutButton = () => {
+const LogoutButton = forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>((props, ref) => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -40,9 +55,11 @@ const LogoutButton = () => {
 
   return (
     <Button
+      ref={ref}
       variant="ghost"
       className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
       onClick={handleLogout}
+      {...props}
     >
       <span className="mr-3">
         <LogOut size={20} />
@@ -50,7 +67,9 @@ const LogoutButton = () => {
       Logout
     </Button>
   );
-};
+});
+
+LogoutButton.displayName = "LogoutButton";
 
 const Sidebar = ({
   userName = "Jane Doe",
@@ -59,8 +78,9 @@ const Sidebar = ({
 }: SidebarProps) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname.includes(path);
+  const { unreadCount } = useNotification();
 
-  const parentMenuItems = [
+  const parentMenuItems: MenuItem[] = [
     { icon: <Home size={20} />, label: "Dashboard", path: "/dashboard/parent" },
     {
       icon: <Activity size={20} />,
@@ -78,13 +98,29 @@ const Sidebar = ({
       path: "/dashboard/parent/payments",
     },
     {
+      icon: <Upload size={20} />,
+      label: "Files",
+      path: "/dashboard/parent/files",
+    },
+    {
+      icon: <BarChart2 size={20} />,
+      label: "Reports",
+      path: "/dashboard/parent/reports",
+    },
+    {
+      icon: <Bell size={20} />,
+      label: "Notifications",
+      path: "/dashboard/parent/notification-settings",
+      badge: unreadCount > 0 ? unreadCount : undefined,
+    },
+    {
       icon: <User size={20} />,
       label: "Profile",
       path: "/dashboard/parent/profile",
     },
   ];
 
-  const adminMenuItems = [
+  const adminMenuItems: MenuItem[] = [
     { icon: <Home size={20} />, label: "Dashboard", path: "/dashboard/admin" },
     {
       icon: <Activity size={20} />,
@@ -145,7 +181,14 @@ const Sidebar = ({
                           isActive(item.path) ? "bg-secondary" : "",
                         )}
                       >
-                        <span className="mr-3">{item.icon}</span>
+                        <span className="mr-3 relative">
+                          {item.icon}
+                          {item.badge && (
+                            <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-destructive text-destructive-foreground text-xs font-bold rounded-full">
+                              {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                            </span>
+                          )}
+                        </span>
                         {item.label}
                       </Button>
                     </Link>

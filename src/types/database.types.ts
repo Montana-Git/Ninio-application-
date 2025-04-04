@@ -152,6 +152,7 @@ export interface Database {
           description: string;
           location: string;
           type: string;
+          is_public: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -163,6 +164,7 @@ export interface Database {
           description: string;
           location: string;
           type: string;
+          is_public?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -174,6 +176,7 @@ export interface Database {
           description?: string;
           location?: string;
           type?: string;
+          is_public?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
