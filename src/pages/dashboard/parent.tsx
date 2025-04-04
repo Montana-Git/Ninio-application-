@@ -12,7 +12,7 @@ import { EventCard } from "@/components/dashboard/EventCard";
 import PaymentSection from "@/components/dashboard/parent/PaymentSection";
 import { BookOpen, Calendar, DollarSign, GraduationCap, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import NinioAssistant from "@/components/ai/NinioAssistant";
+import DashboardAssistantButton from "@/components/ai/DashboardAssistantButton";
 
 export default function ParentDashboard() {
   const { user } = useAuth();
@@ -20,6 +20,7 @@ export default function ParentDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [childId, setChildId] = useState<string | null>(null);
   const [actualChildName, setActualChildName] = useState("your child");
+  const [children, setChildren] = useState<any[]>([]);
   const [stats, setStats] = useState({
     activities: { value: "0", change: 0 },
     attendance: { value: "0%", change: 0 },
@@ -28,7 +29,6 @@ export default function ParentDashboard() {
   });
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
-  const [showAssistant, setShowAssistant] = useState(false);
 
   // Handle event click
   const handleEventClick = (event: any) => {
@@ -45,20 +45,38 @@ export default function ParentDashboard() {
       if (!user?.id) return;
 
       try {
-        // This would be replaced with a real API call to get the parent's children
-        // For now, we'll use a mock child ID
-        const mockChildId = "child-123";
-        const mockChildName = "Alex";
+        // Get the parent's children from the API
+        const { data: childrenData, error } = await getChildren(user.id);
 
-        setChildId(mockChildId);
-        setActualChildName(mockChildName);
+        if (error) {
+          throw error;
+        }
+
+        // Store all children
+        setChildren(childrenData || []);
+
+        if (childrenData && childrenData.length > 0) {
+          // Use the first child by default
+          const firstChild = childrenData[0];
+          setChildId(firstChild.id);
+          setActualChildName(`${firstChild.first_name} ${firstChild.last_name}`);
+        } else {
+          // No children found
+          setChildId(null);
+          setActualChildName("No children found");
+        }
       } catch (error) {
         console.error("Error fetching child ID:", error);
+        showNotification({
+          title: "Error",
+          message: "Could not load your children's information. Please try again later.",
+          type: "error"
+        });
       }
     };
 
     fetchChildId();
-  }, [user?.id]);
+  }, [user?.id, showNotification]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -212,8 +230,42 @@ export default function ParentDashboard() {
           <div className="grid gap-6">
             {/* Child Selector */}
             <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <h2 className="text-lg font-medium mb-2">Selected Child: {actualChildName}</h2>
-              <p className="text-sm text-gray-500">You can view information for {actualChildName}</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-medium mb-2">Selected Child: {actualChildName}</h2>
+                  <p className="text-sm text-gray-500">
+                    {children.length > 0
+                      ? `You can view information for ${actualChildName} or select another child below.`
+                      : 'You have not added any children yet. Please add a child in your profile settings.'}
+                  </p>
+                </div>
+                {children.length === 0 && (
+                  <Button
+                    onClick={() => window.location.href = '/dashboard/parent/profile'}
+                    variant="outline"
+                  >
+                    Add Child
+                  </Button>
+                )}
+              </div>
+
+              {children.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {children.map((child) => (
+                    <Button
+                      key={child.id}
+                      variant={childId === child.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setChildId(child.id);
+                        setActualChildName(`${child.first_name} ${child.last_name}`);
+                      }}
+                    >
+                      {child.first_name} {child.last_name}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Stats Section */}
@@ -294,21 +346,8 @@ export default function ParentDashboard() {
         </main>
       </div>
 
-      {/* Ninio Assistant */}
-      {showAssistant && (
-        <div className="fixed bottom-20 right-6 z-50">
-          <NinioAssistant isOpen={showAssistant} onClose={() => setShowAssistant(false)} />
-        </div>
-      )}
-
-      {/* Assistant Button */}
-      <Button
-        onClick={() => setShowAssistant(!showAssistant)}
-        className="fixed bottom-6 right-6 rounded-full w-12 h-12 shadow-lg z-50"
-        size="icon"
-      >
-        {showAssistant ? <BookOpen className="h-6 w-6" /> : <BookOpen className="h-6 w-6" />}
-      </Button>
+      {/* Dashboard Assistant Button */}
+      <DashboardAssistantButton />
     </div>
   );
 }

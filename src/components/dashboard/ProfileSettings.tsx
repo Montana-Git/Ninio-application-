@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import ChildrenManagement from "./parent/ChildrenManagement";
 
 const profileFormSchema = z.object({
   firstName: z
@@ -345,20 +346,9 @@ const ProfileSettings = ({ userRole = "parent" }: ProfileSettingsProps) => {
           </Card>
 
           {userRole === "parent" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Children Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  View and manage your children's information
-                </p>
-                {/* Children information would be displayed here */}
-                <div className="flex justify-end">
-                  <Button variant="outline">Manage Children</Button>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="mt-6">
+              <ChildrenManagement />
+            </div>
           )}
         </TabsContent>
 

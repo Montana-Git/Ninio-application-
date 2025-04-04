@@ -26,7 +26,12 @@ interface PayPalPayment {
   email?: string;
 }
 
-type PaymentFormData = CreditCardPayment | BankTransferPayment | PayPalPayment;
+interface CashPayment {
+  paymentMethod: "cash";
+  notes?: string;
+}
+
+type PaymentFormData = CreditCardPayment | BankTransferPayment | PayPalPayment | CashPayment;
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +60,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Loader2, CreditCard, Building, Wallet, AlertCircle } from "lucide-react";
+import { Loader2, CreditCard, Building, Wallet, AlertCircle, DollarSign } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface PaymentFormProps {
@@ -109,10 +114,16 @@ const paypalSchema = z.object({
   paymentMethod: z.literal("paypal"),
 });
 
+const cashSchema = z.object({
+  paymentMethod: z.literal("cash"),
+  notes: z.string().optional(),
+});
+
 const paymentFormSchema = z.discriminatedUnion("paymentMethod", [
   creditCardSchema,
   bankTransferSchema,
   paypalSchema,
+  cashSchema,
 ]);
 
 type PaymentFormValues = z.infer<typeof paymentFormSchema>;
@@ -138,6 +149,7 @@ export function PaymentForm({
     resolver: zodResolver(
       paymentMethod === "credit_card" ? creditCardSchema :
       paymentMethod === "bank_transfer" ? bankTransferSchema :
+      paymentMethod === "cash" ? cashSchema :
       paypalSchema
     ),
     defaultValues: {
@@ -185,6 +197,14 @@ export function PaymentForm({
           accountNumber: values.accountNumber,
           routingNumber: values.routingNumber,
           accountName: values.accountName,
+        });
+      } else if (paymentMethod === "cash" && "notes" in values) {
+        Object.assign(paymentRequest, {
+          notes: values.notes,
+          metadata: {
+            paymentType: "cash",
+            requiresConfirmation: true
+          }
         });
       }
 
@@ -290,6 +310,12 @@ export function PaymentForm({
                     <div className="flex items-center">
                       <Wallet className="mr-2 h-4 w-4" />
                       <span>PayPal</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="cash">
+                    <div className="flex items-center">
+                      <DollarSign className="mr-2 h-4 w-4" />
+                      <span>Cash</span>
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -452,6 +478,43 @@ export function PaymentForm({
                   You will be redirected to PayPal to complete your payment.
                 </p>
                 <Wallet className="h-12 w-12 mx-auto text-blue-500" />
+              </div>
+            )}
+
+            {/* Cash Payment Fields */}
+            {paymentMethod === "cash" && (
+              <div className="space-y-4">
+                <div className="rounded-md bg-amber-50 p-4 text-amber-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="h-5 w-5 text-amber-600" />
+                    <span className="font-medium">Cash Payment Instructions</span>
+                  </div>
+                  <p className="text-sm mb-2">
+                    Your payment will be recorded as pending. Please bring the exact amount in cash to:
+                  </p>
+                  <ul className="text-sm list-disc pl-5 space-y-1">
+                    <li>The school's front desk during office hours (8 AM - 5 PM)</li>
+                    <li>Your child's teacher in a sealed envelope with your child's name</li>
+                  </ul>
+                  <p className="text-sm mt-2">You will receive a receipt once the payment is confirmed.</p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Additional Notes (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Any special instructions or notes"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             )}
           </CardContent>

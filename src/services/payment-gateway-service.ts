@@ -7,7 +7,7 @@ import { retry } from '@/utils/api';
 import { PaymentError } from '@/utils/errors';
 
 // Payment gateway types
-export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'paypal';
+export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'paypal' | 'cash';
 export type PaymentStatus = 'pending' | 'processing' | 'paid' | 'failed' | 'refunded' | 'overdue';
 
 export interface PaymentRequest {
@@ -104,6 +104,9 @@ export class PaymentGatewayService {
                 break;
               case 'paypal':
                 paymentResponse = await this.processPayPalPayment(paymentRequest);
+                break;
+              case 'cash':
+                paymentResponse = await this.processCashPayment(paymentRequest);
                 break;
               default:
                 throw new Error(`Unsupported payment method: ${paymentRequest.paymentMethod}`);
@@ -579,6 +582,35 @@ export class PaymentGatewayService {
    * @param method - The payment method
    * @returns Formatted payment method
    */
+  /**
+   * Process a cash payment
+   *
+   * @param paymentRequest - The payment request details
+   * @returns Payment response
+   */
+  private static async processCashPayment(
+    paymentRequest: PaymentRequest
+  ): Promise<PaymentResponse> {
+    // Cash payments are marked as pending until confirmed by admin
+    // This is because cash needs to be physically collected
+
+    // Generate a transaction ID for the cash payment
+    const transactionId = `cash_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Generate a receipt URL
+    const receiptUrl = `https://receipts.ninio.app/${transactionId}`;
+
+    return {
+      success: true,
+      transactionId,
+      receiptUrl,
+      status: 'pending', // Cash payments start as pending until confirmed
+      details: {
+        message: 'Cash payment recorded. Please pay at the front desk or to your child\'s teacher.'
+      }
+    };
+  }
+
   private static formatPaymentMethod(method: string): string {
     switch (method) {
       case 'credit_card':
@@ -587,6 +619,8 @@ export class PaymentGatewayService {
         return 'Bank Transfer';
       case 'paypal':
         return 'PayPal';
+      case 'cash':
+        return 'Cash';
       default:
         return method;
     }

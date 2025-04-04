@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { getChildren, getEvents, getPayments, getUsers } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import DashboardAssistantButton from "@/components/ai/DashboardAssistantButton";
 
 const AdminDashboard = () => {
   const { t } = useTranslation();
@@ -161,35 +162,38 @@ const AdminDashboard = () => {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid grid-cols-6 w-full max-w-4xl">
-              <TabsTrigger value="overview" className="flex items-center gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                {t("admin.overview")}
-              </TabsTrigger>
-              <TabsTrigger
-                value="activities"
-                className="flex items-center gap-2"
-              >
-                <Activity className="h-4 w-4" />
-                {t("admin.activities")}
-              </TabsTrigger>
-              <TabsTrigger value="events" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                {t("admin.events")}
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                {t("admin.payments")}
-              </TabsTrigger>
-              <TabsTrigger value="children" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                {t("admin.children")}
-              </TabsTrigger>
-              <TabsTrigger value="parents" className="flex items-center gap-2">
-                <UserRound className="h-4 w-4" />
-                {t("admin.parents")}
-              </TabsTrigger>
-            </TabsList>
+            <div className="bg-white p-4 rounded-lg shadow-sm mb-4 border">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Admin Navigation</h3>
+              <TabsList className="grid grid-cols-6 w-full max-w-4xl bg-gray-100 p-1">
+                <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <LayoutDashboard className="h-4 w-4" />
+                  {t("admin.overview")}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="activities"
+                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Activity className="h-4 w-4" />
+                  {t("admin.activities")}
+                </TabsTrigger>
+                <TabsTrigger value="events" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <Calendar className="h-4 w-4" />
+                  {t("admin.events")}
+                </TabsTrigger>
+                <TabsTrigger value="payments" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <CreditCard className="h-4 w-4" />
+                  {t("admin.payments")}
+                </TabsTrigger>
+                <TabsTrigger value="children" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <Users className="h-4 w-4" />
+                  {t("admin.children")}
+                </TabsTrigger>
+                <TabsTrigger value="parents" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <UserRound className="h-4 w-4" />
+                  {t("admin.parents")}
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Overview Tab */}
             <TabsContent value="overview">
@@ -345,6 +349,9 @@ const AdminDashboard = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Dashboard Assistant Button */}
+      <DashboardAssistantButton />
     </div>
   );
 };

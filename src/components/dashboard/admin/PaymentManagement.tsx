@@ -389,6 +389,102 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
     setIsReceiptDialogOpen(true);
   };
 
+  // Handle adding a new payment
+  const handleAddPayment = async (formData: FormData) => {
+    try {
+      // Get form values
+      const parentId = formData.get('parent') as string;
+      const childId = formData.get('child') as string;
+      const paymentType = formData.get('payment-type') as string;
+      const category = formData.get('category') as string;
+      const amount = parseFloat(formData.get('amount') as string);
+      const status = formData.get('status') as 'paid' | 'pending' | 'overdue';
+      const date = formData.get('date') as string;
+      const dueDate = formData.get('due-date') as string;
+      const paymentMethod = formData.get('payment-method') as string;
+      const notes = formData.get('notes') as string;
+      const sendNotification = formData.get('send-notification') === 'on';
+
+      // Validate required fields
+      if (!parentId || !amount || isNaN(amount) || amount <= 0) {
+        alert('Please fill in all required fields with valid values');
+        return;
+      }
+
+      // Create payment data object
+      const paymentData = {
+        parent_id: parentId === 'no_parent' ? null : parentId,
+        child_id: childId === 'no_child' ? null : childId,
+        amount,
+        date,
+        due_date: dueDate,
+        status,
+        payment_type: paymentType,
+        payment_method: paymentMethod,
+        category,
+        notes,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Validate parent ID
+      if (!paymentData.parent_id) {
+        alert('Please select a valid parent');
+        return;
+      }
+
+      // Add payment to database
+      const { data, error } = await addPayment(paymentData);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // If successful, update local state
+      if (data) {
+        // Find parent and child names
+        const parent = parents.find(p => p.id === parentId);
+        const child = children.find(c => c.id === childId);
+
+        // Create formatted payment object
+        const newPayment: Payment = {
+          id: data.id,
+          parentName: parent ? parent.name : 'Unknown',
+          childName: child ? child.name : 'N/A',
+          amount,
+          date,
+          dueDate,
+          status,
+          paymentType,
+          paymentMethod,
+          category,
+          notes
+        };
+
+        // Add to payments list
+        setAllPayments(prev => [newPayment, ...prev]);
+
+        // Send notification if requested
+        if (sendNotification) {
+          // In a real app, this would call an API to send an email
+          console.log('Sending payment notification to parent:', parentId);
+        }
+
+        // Close dialog
+        setIsNewPaymentDialogOpen(false);
+
+        // Refresh analytics
+        fetchAnalyticsData();
+
+        // Show success message
+        alert('Payment added successfully');
+      }
+    } catch (err) {
+      console.error('Error adding payment:', err);
+      alert('Failed to add payment. Please try again.');
+    }
+  };
+
   // Use real data instead of mock data
   const displayPayments = allPayments.filter((payment) => {
     // Apply search filter
@@ -427,21 +523,8 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
     return 0;
   });
 
-  // For backward compatibility
+  // Use real data from API instead of mock data
   const defaultPayments: Payment[] = [
-    {
-      id: "1",
-      parentName: "John Smith",
-      childName: "Emma Smith",
-      amount: 250.0,
-      date: "2023-05-15",
-      dueDate: "2023-05-10",
-      status: "paid",
-      paymentType: "Tuition Fee",
-      paymentMethod: "Credit Card",
-      notes: "Monthly tuition payment",
-      category: "Tuition",
-    },
     {
       id: "2",
       parentName: "Sarah Johnson",
@@ -743,197 +826,203 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[600px]">
-                      <DialogHeader>
-                        <DialogTitle>Process New Payment</DialogTitle>
-                        <DialogDescription>
-                          Enter the details to process a new payment or create a
-                          payment request.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="parent">Parent</Label>
-                            <Select defaultValue="john-smith">
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select parent" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="john-smith">
-                                  John Smith
-                                </SelectItem>
-                                <SelectItem value="sarah-johnson">
-                                  Sarah Johnson
-                                </SelectItem>
-                                <SelectItem value="david-williams">
-                                  David Williams
-                                </SelectItem>
-                                <SelectItem value="jennifer-brown">
-                                  Jennifer Brown
-                                </SelectItem>
-                                <SelectItem value="robert-davis">
-                                  Robert Davis
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        handleAddPayment(new FormData(e.currentTarget));
+                      }}>
+                        <DialogHeader>
+                          <DialogTitle>Process New Payment</DialogTitle>
+                          <DialogDescription>
+                            Enter the details to process a new payment or create a
+                            payment request.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="parent">Parent</Label>
+                              <Select name="parent" defaultValue={parents.length > 0 ? parents[0].id : "no_parent"}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select parent" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {parents.length > 0 ? (
+                                    parents.map((parent) => (
+                                      <SelectItem key={parent.id} value={parent.id}>
+                                        {parent.name}
+                                      </SelectItem>
+                                    ))
+                                  ) : (
+                                    <SelectItem value="no_parent" disabled>
+                                      No parents available
+                                    </SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="child">Child</Label>
+                              <Select name="child" defaultValue={children.length > 0 ? children[0].id : "no_child"}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select child" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {children.length > 0 ? (
+                                    children.map((child) => (
+                                      <SelectItem key={child.id} value={child.id}>
+                                        {child.name}
+                                      </SelectItem>
+                                    ))
+                                  ) : (
+                                    <SelectItem value="no_child" disabled>
+                                      No children available
+                                    </SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="child">Child</Label>
-                            <Select defaultValue="emma-smith">
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select child" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="emma-smith">
-                                  Emma Smith
-                                </SelectItem>
-                                <SelectItem value="michael-johnson">
-                                  Michael Johnson
-                                </SelectItem>
-                                <SelectItem value="sophia-williams">
-                                  Sophia Williams
-                                </SelectItem>
-                                <SelectItem value="oliver-brown">
-                                  Oliver Brown
-                                </SelectItem>
-                                <SelectItem value="ava-davis">
-                                  Ava Davis
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="payment-type">Payment Type</Label>
+                              <Select name="payment-type" defaultValue="Tuition Fee">
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select payment type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Tuition Fee">
+                                    Tuition Fee
+                                  </SelectItem>
+                                  <SelectItem value="Art Supplies">
+                                    Art Supplies
+                                  </SelectItem>
+                                  <SelectItem value="Field Trip">
+                                    Field Trip
+                                  </SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="category">Category</Label>
+                              <Select name="category" defaultValue="Tuition">
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Tuition">Tuition</SelectItem>
+                                  <SelectItem value="Supplies">
+                                    Supplies
+                                  </SelectItem>
+                                  <SelectItem value="Activities">
+                                    Activities
+                                  </SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="payment-type">Payment Type</Label>
-                            <Select defaultValue="tuition">
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select payment type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="tuition">
-                                  Tuition Fee
-                                </SelectItem>
-                                <SelectItem value="supplies">
-                                  Art Supplies
-                                </SelectItem>
-                                <SelectItem value="activities">
-                                  Field Trip
-                                </SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="amount">Amount ($)</Label>
+                              <div className="relative">
+                                <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                                <Input
+                                  id="amount"
+                                  name="amount"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  required
+                                  defaultValue="250.00"
+                                  className="pl-8"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="status">Status</Label>
+                              <Select name="status" defaultValue="pending">
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="paid">Paid</SelectItem>
+                                  <SelectItem value="pending">Pending</SelectItem>
+                                  <SelectItem value="overdue">Overdue</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="category">Category</Label>
-                            <Select defaultValue="Tuition">
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Tuition">Tuition</SelectItem>
-                                <SelectItem value="Supplies">
-                                  Supplies
-                                </SelectItem>
-                                <SelectItem value="Activities">
-                                  Activities
-                                </SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="amount">Amount ($)</Label>
-                            <div className="relative">
-                              <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="date">Payment Date</Label>
                               <Input
-                                id="amount"
-                                type="number"
-                                defaultValue="250.00"
-                                className="pl-8"
+                                id="date"
+                                name="date"
+                                type="date"
+                                required
+                                defaultValue={
+                                  new Date().toISOString().split("T")[0]
+                                }
+                              />
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="due-date">Due Date</Label>
+                              <Input
+                                id="due-date"
+                                name="due-date"
+                                type="date"
+                                required
+                                defaultValue={
+                                  new Date().toISOString().split("T")[0]
+                                }
                               />
                             </div>
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="status">Status</Label>
-                            <Select defaultValue="pending">
+                            <Label htmlFor="payment-method">Payment Method</Label>
+                            <Select name="payment-method" defaultValue="Credit Card">
                               <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
+                                <SelectValue placeholder="Select payment method" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="paid">Paid</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="Credit Card">
+                                  Credit Card
+                                </SelectItem>
+                                <SelectItem value="Bank Transfer">
+                                  Bank Transfer
+                                </SelectItem>
+                                <SelectItem value="Cash">Cash</SelectItem>
+                                <SelectItem value="Check">Check</SelectItem>
+                                <SelectItem value="PayPal">PayPal</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
                           <div className="grid gap-2">
-                            <Label htmlFor="date">Payment Date</Label>
-                            <Input
-                              id="date"
-                              type="date"
-                              defaultValue={
-                                new Date().toISOString().split("T")[0]
-                              }
+                            <Label htmlFor="notes">Notes</Label>
+                            <Textarea
+                              id="notes"
+                              name="notes"
+                              placeholder="Add any additional notes about this payment"
+                              className="min-h-[80px]"
                             />
                           </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="due-date">Due Date</Label>
-                            <Input
-                              id="due-date"
-                              type="date"
-                              defaultValue={
-                                new Date().toISOString().split("T")[0]
-                              }
-                            />
+                          <div className="flex items-center space-x-2 pt-2">
+                            <Checkbox id="send-notification" name="send-notification" />
+                            <Label
+                              htmlFor="send-notification"
+                              className="text-sm"
+                            >
+                              Send email notification to parent
+                            </Label>
                           </div>
                         </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="payment-method">Payment Method</Label>
-                          <Select defaultValue="credit-card">
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select payment method" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="credit-card">
-                                Credit Card
-                              </SelectItem>
-                              <SelectItem value="bank-transfer">
-                                Bank Transfer
-                              </SelectItem>
-                              <SelectItem value="cash">Cash</SelectItem>
-                              <SelectItem value="check">Check</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="notes">Notes</Label>
-                          <Textarea
-                            id="notes"
-                            placeholder="Add any additional notes about this payment"
-                            className="min-h-[80px]"
-                          />
-                        </div>
-                        <div className="flex items-center space-x-2 pt-2">
-                          <Checkbox id="send-notification" />
-                          <Label
-                            htmlFor="send-notification"
-                            className="text-sm"
-                          >
-                            Send email notification to parent
-                          </Label>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <DialogClose asChild>
-                          <Button variant="outline">Cancel</Button>
-                        </DialogClose>
-                        <Button type="submit">Process Payment</Button>
-                      </DialogFooter>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setIsNewPaymentDialogOpen(false)}>Cancel</Button>
+                          <Button type="submit">Process Payment</Button>
+                        </DialogFooter>
+                      </form>
                     </DialogContent>
                   </Dialog>
                 </div>

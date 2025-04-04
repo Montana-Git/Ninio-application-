@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   User,
+  Users,
   Activity,
   Upload,
   BarChart2,
@@ -48,14 +49,36 @@ const LogoutButton = forwardRef<
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    await signOut();
-    navigate("/auth/login");
+  const handleLogout = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      console.log('Logging out...');
+      // First clear local storage to ensure all session data is removed
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Then call the signOut function
+      await signOut();
+      console.log('Logout successful, navigating to login page');
+
+      // Force a small delay to ensure signOut completes
+      setTimeout(() => {
+        // Use window.location for a full page refresh to clear any remaining state
+        window.location.href = '/auth/login';
+      }, 100);
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Force navigation even if there was an error
+      window.location.href = '/auth/login';
+    }
   };
 
   return (
     <Button
       ref={ref}
+      type="button"
       variant="ghost"
       className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
       onClick={handleLogout}
@@ -98,6 +121,11 @@ const Sidebar = ({
       path: "/dashboard/parent/payments",
     },
     {
+      icon: <Users size={20} />,
+      label: "Children",
+      path: "/dashboard/parent/children",
+    },
+    {
       icon: <Upload size={20} />,
       label: "Files",
       path: "/dashboard/parent/files",
@@ -121,27 +149,8 @@ const Sidebar = ({
   ];
 
   const adminMenuItems: MenuItem[] = [
-    { icon: <Home size={20} />, label: "Dashboard", path: "/dashboard/admin" },
-    {
-      icon: <Activity size={20} />,
-      label: "Activities",
-      path: "/dashboard/admin/activities",
-    },
-    {
-      icon: <Calendar size={20} />,
-      label: "Events",
-      path: "/dashboard/admin/events",
-    },
-    {
-      icon: <CreditCard size={20} />,
-      label: "Payments",
-      path: "/dashboard/admin/payments",
-    },
-    {
-      icon: <User size={20} />,
-      label: "Profile",
-      path: "/dashboard/admin/profile",
-    },
+    { icon: <User size={20} />, label: "Profile", path: "/dashboard/admin/profile" },
+    { icon: <Settings size={20} />, label: "Settings", path: "/dashboard/admin/settings" },
   ];
 
   const menuItems = userRole === "admin" ? adminMenuItems : parentMenuItems;
@@ -165,79 +174,89 @@ const Sidebar = ({
 
       <Separator />
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {menuItems.map((item, index) => (
-            <li key={index}>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link to={item.path}>
-                      <Button
-                        variant={isActive(item.path) ? "secondary" : "ghost"}
-                        className={cn(
-                          "w-full justify-start",
-                          isActive(item.path) ? "bg-secondary" : "",
-                        )}
-                      >
-                        <span className="mr-3 relative">
-                          {item.icon}
-                          {item.badge && (
-                            <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-destructive text-destructive-foreground text-xs font-bold rounded-full">
-                              {(item.badge ?? 0) > 9 ? '9+' : item.badge}
-                            </span>
+      {/* Navigation Menu - Only show full menu for parent users */}
+      {userRole === "parent" && (
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            {menuItems.map((item, index) => (
+              <li key={index}>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link to={item.path}>
+                        <Button
+                          variant={isActive(item.path) ? "secondary" : "ghost"}
+                          className={cn(
+                            "w-full justify-start",
+                            isActive(item.path) ? "bg-secondary" : "",
                           )}
-                        </span>
-                        {item.label}
-                      </Button>
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </li>
-          ))}
-        </ul>
-      </nav>
+                        >
+                          <span className="mr-3 relative">
+                            {item.icon}
+                            {item.badge && (
+                              <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-destructive text-destructive-foreground text-xs font-bold rounded-full">
+                                {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                              </span>
+                            )}
+                          </span>
+                          {item.label}
+                        </Button>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
 
-      {/* Settings and Logout */}
-      <div className="p-4 mt-auto border-t">
-        <ul className="space-y-2">
-          <li>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    to={
-                      userRole === "admin"
-                        ? "/dashboard/admin/profile"
-                        : "/dashboard/parent/profile"
-                    }
-                  >
-                    <Button variant="ghost" className="w-full justify-start">
-                      <span className="mr-3">
-                        <Settings size={20} />
-                      </span>
-                      Settings
+      {/* Admin Profile Menu - Simplified for admin users */}
+      {userRole === "admin" && (
+        <div className="flex-1 p-4">
+          <div className="mb-6">
+            <h3 className="font-medium text-sm uppercase text-muted-foreground mb-3">Account</h3>
+            <ul className="space-y-2">
+              {adminMenuItems.map((item, index) => (
+                <li key={index}>
+                  <Link to={item.path}>
+                    <Button
+                      variant={isActive(item.path) ? "secondary" : "ghost"}
+                      className={cn(
+                        "w-full justify-start",
+                        isActive(item.path) ? "bg-secondary" : "",
+                      )}
+                    >
+                      <span className="mr-3">{item.icon}</span>
+                      {item.label}
                     </Button>
                   </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Settings</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </li>
-          <li>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <LogoutButton />
-                </TooltipTrigger>
-                <TooltipContent side="right">Logout</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </li>
-        </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="font-medium text-sm uppercase text-muted-foreground mb-3">Quick Links</h3>
+            <div className="text-sm text-muted-foreground">
+              <p className="mb-2">Use the tabs above to navigate between different admin sections.</p>
+              <p>This sidebar is for your profile and account settings only.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Button - For both user types */}
+      <div className="p-4 mt-auto border-t">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <LogoutButton />
+            </TooltipTrigger>
+            <TooltipContent side="right">Logout</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   );

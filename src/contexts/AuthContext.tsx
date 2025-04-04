@@ -231,18 +231,35 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     try {
+      // First clear local state
+      setUser(null);
+      setSession(null);
+
+      // Clear any local storage items related to authentication
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('supabase.auth.expires_at');
+      localStorage.removeItem('supabase.auth.refresh_token');
+
+      // Then call Supabase signOut
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Error signing out:", error);
+        // Continue with cleanup even if there's an error
       }
-      // Always clear user state even if there's an error
-      setUser(null);
-      setSession(null);
+
+      // Force clear session storage as well
+      sessionStorage.clear();
+
+      // Return a resolved promise to ensure any chained operations continue
+      return Promise.resolve();
     } catch (error) {
       console.error("Unexpected error signing out:", error);
       // Force clear user state
       setUser(null);
       setSession(null);
+
+      // Return a resolved promise even in case of error
+      return Promise.resolve();
     }
   };
 

@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CreditCard, Building, Wallet } from "lucide-react";
+import { CreditCard, Building, Wallet, DollarSign } from "lucide-react";
 
 interface PaymentMethodSelectorProps {
   value: PaymentMethod;
@@ -16,7 +16,7 @@ interface PaymentMethodSelectorProps {
 
 /**
  * Payment method selector component
- * 
+ *
  * Provides a dropdown for selecting payment methods
  */
 export function PaymentMethodSelector({
@@ -50,6 +50,12 @@ export function PaymentMethodSelector({
           <div className="flex items-center">
             <Wallet className="mr-2 h-4 w-4" />
             <span>PayPal</span>
+          </div>
+        </SelectItem>
+        <SelectItem value="cash">
+          <div className="flex items-center">
+            <DollarSign className="mr-2 h-4 w-4" />
+            <span>Cash</span>
           </div>
         </SelectItem>
       </SelectContent>

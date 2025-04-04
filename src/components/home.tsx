@@ -6,6 +6,7 @@ import PhilosophySection from "./home/PhilosophySection";
 import FacilitiesSection from "./home/FacilitiesSection";
 import AssistantSection from "./home/AssistantSection";
 import NinioAssistant from "./ai/NinioAssistant";
+import FloatingAssistantButton from "./ai/FloatingAssistantButton";
 import Footer from "./layout/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -33,6 +34,7 @@ function Home() {
       </main>
       <Footer />
       <NinioAssistant isOpen={isAssistantOpen} onClose={handleCloseAssistant} />
+      <FloatingAssistantButton onClick={handleOpenAssistant} />
     </div>
   );
 }
