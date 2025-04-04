@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
@@ -21,29 +21,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build-minimal  # Use minimal build to avoid memory issues
-        env:
-          # Use default values for CI/CD to avoid errors
-          VITE_SUPABASE_URL: "https://example.supabase.co"
-          VITE_SUPABASE_ANON_KEY: "example-key"
-          VITE_GROQ_API_KEY: "gsk_example"
-          VITE_BASE_PATH: "/"
+      - name: Run minimal build script
+        run: node scripts/minimal-build.js
 
       # Simple deployment step (placeholder)
-      - name: Deploy to hosting
+      - name: Create deployment report
         run: |
-          echo "Deploying to hosting service..."
-          echo "This is a placeholder for actual deployment commands."
-          echo "Deployment would normally push the ./dist directory to a hosting service."
-          # Uncomment and configure when ready to deploy to a real service
-          # Example for Netlify:
-          # if [ -n "$NETLIFY_AUTH_TOKEN" ] && [ -n "$NETLIFY_SITE_ID" ]; then
-          #   npx netlify-cli deploy --dir=./dist --prod
-          # else
-          #   echo "Skipping Netlify deployment - credentials not configured"
-          # fi
-        # Uncomment when ready to use actual deployment credentials
-        # env:
-        #   NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        #   NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          mkdir -p reports
+          echo "Deployment skipped for CI" > reports/deployment-report.txt
+
+      - name: Skip deployment for now
+        run: echo "Skipping deployment for CI"
+
+      - name: Upload deployment report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: reports/
+          retention-days: 5
