@@ -50,12 +50,22 @@ We've included a script to help you apply migrations:
 
 ## Fixing RLS Policies for Admin Access
 
-If you're having issues with the admin dashboard not showing children or parents, you may need to update your Row Level Security (RLS) policies. The latest migration file (`20240710000001_fix_rls_policies_for_admin.sql`) addresses this issue.
+If you're having issues with the admin dashboard not showing children or parents, you may need to update your Row Level Security (RLS) policies. The migration file (`20240710000001_fix_rls_policies_for_admin.sql`) addresses this issue.
 
 This migration:
 
 1. Updates the RLS policies to allow admins to view and manage all users and children
 2. Adds temporary development policies for easier testing (these should be removed in production)
+
+## Adding Payments Functionality
+
+To enable payments functionality, you need to create the payments table in your database. The migration file (`20240712000001_create_payments_table.sql`) creates the necessary table and RLS policies.
+
+This migration:
+
+1. Creates a payments table with all necessary fields
+2. Sets up RLS policies to allow authenticated users to view and manage payments
+3. Grants the necessary permissions for the table
 
 After applying this migration, make sure to:
 

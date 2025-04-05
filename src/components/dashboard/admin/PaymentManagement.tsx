@@ -63,7 +63,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import { getPayments, getUsers, getChildren, updatePaymentStatus, processRefund } from "@/lib/api";
+import { getPayments, getUsers, getChildren, updatePaymentStatus, processRefund, addPayment } from "@/lib/api";
 import { PaymentReceipt } from "@/components/ui/payment";
 import { PaymentStatus } from "@/services/payment-gateway-service";
 import paymentAnalyticsService from "@/services/payment-analytics-service";
@@ -434,11 +434,15 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
       }
 
       // Add payment to database
+      console.log('Adding payment with data:', paymentData);
       const { data, error } = await addPayment(paymentData);
 
       if (error) {
-        throw new Error(error.message);
+        console.error('Error from addPayment:', error);
+        throw new Error(error.message || 'Failed to add payment');
       }
+
+      console.log('Payment added successfully:', data);
 
       // If successful, update local state
       if (data) {
@@ -481,7 +485,8 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
       }
     } catch (err) {
       console.error('Error adding payment:', err);
-      alert('Failed to add payment. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert(`Failed to add payment: ${errorMessage}. Please try again.`);
     }
   };
 
