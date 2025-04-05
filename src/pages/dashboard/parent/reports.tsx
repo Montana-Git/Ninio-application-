@@ -18,8 +18,8 @@ const ReportsPage = () => {
         <title>Reports | Ninio Kindergarten</title>
       </Helmet>
 
-      {/* Sidebar */}
-      <Sidebar userName={user?.first_name} userRole="parent" />
+      {/* Sidebar - now gets user info from AuthContext */}
+      <Sidebar />
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
@@ -52,7 +52,7 @@ const ReportsPage = () => {
                 Custom
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="activities">
               <Card>
                 <CardHeader>
@@ -62,14 +62,14 @@ const ReportsPage = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ReportGenerator 
+                  <ReportGenerator
                     defaultType="activities"
                     parentId={user?.id}
                   />
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="attendance">
               <Card>
                 <CardHeader>
@@ -79,14 +79,14 @@ const ReportsPage = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ReportGenerator 
+                  <ReportGenerator
                     defaultType="attendance"
                     parentId={user?.id}
                   />
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="payments">
               <Card>
                 <CardHeader>
@@ -96,14 +96,14 @@ const ReportsPage = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ReportGenerator 
+                  <ReportGenerator
                     defaultType="payments"
                     parentId={user?.id}
                   />
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="custom">
               <Card>
                 <CardHeader>
@@ -113,7 +113,7 @@ const ReportsPage = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ReportGenerator 
+                  <ReportGenerator
                     parentId={user?.id}
                   />
                 </CardContent>

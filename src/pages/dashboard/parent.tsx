@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotification } from "@/contexts/NotificationContext";
-import { getChildActivities, getEvents, getParentPayments } from "@/lib/api";
+import { getChildActivities, getEvents, getParentPayments, getChildren } from "@/lib/api";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import DashboardCard from "@/components/dashboard/DashboardCard";
@@ -78,128 +78,106 @@ export default function ParentDashboard() {
     fetchChildId();
   }, [user?.id, showNotification]);
 
-  // Fetch dashboard data
+  // Cache for dashboard data
+  const [dataCache, setDataCache] = useState<{
+    activities: any[] | null;
+    events: any[] | null;
+    payments: any[] | null;
+    lastFetched: number;
+  }>({
+    activities: null,
+    events: null,
+    payments: null,
+    lastFetched: 0
+  });
+
+  // Fetch dashboard data with optimized parallel requests and caching
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const CACHE_DURATION = 60000; // 1 minute cache
+    const now = Date.now();
+    const isCacheValid = now - dataCache.lastFetched < CACHE_DURATION;
+
+    // Set initial loading state
+    if (!isCacheValid) {
       setIsLoading(true);
+    }
 
+    const fetchDashboardData = async () => {
       try {
-        // Fetch activities data
+        // If cache is valid and we have data, use it
+        if (isCacheValid) {
+          if (childId && dataCache.activities) {
+            processActivitiesData(dataCache.activities, childId);
+          }
+          if (dataCache.events) {
+            processEventsData(dataCache.events);
+          }
+          if (user?.id && dataCache.payments) {
+            processPaymentsData(dataCache.payments);
+          }
+          return;
+        }
+
+        // Create an array of promises for parallel execution
+        const promises = [];
+        let activitiesData = null;
+        let eventsData = null;
+        let paymentsData = null;
+
+        // 1. Fetch activities data if childId exists
         if (childId) {
-          const { data: activitiesData, error: activitiesError } = await getChildActivities(childId);
-
-          if (activitiesError) {
-            console.error("Error fetching child activities:", activitiesError);
-          } else if (activitiesData) {
-            // Calculate activities stats
-            const totalActivities = activitiesData.length;
-            const thisMonthActivities = activitiesData.filter((activity: any) => {
-              try {
-                const activityDate = new Date(activity.activity_date);
-                const now = new Date();
-                return activityDate.getMonth() === now.getMonth() &&
-                       activityDate.getFullYear() === now.getFullYear();
-              } catch (dateError) {
-                console.error("Error parsing activity date:", dateError);
-                return false;
+          const activitiesPromise = getChildActivities(childId)
+            .then(({ data, error }) => {
+              if (error) {
+                console.error("Error fetching child activities:", error);
+                return null;
               }
-            }).length;
-
-            // Update activities stats
-            setStats(prev => ({
-              ...prev,
-              activities: {
-                value: thisMonthActivities.toString(),
-                change: thisMonthActivities - (totalActivities - thisMonthActivities)
-              },
-              // Placeholder for attendance and achievements until we have real data
-              attendance: { value: "92%", change: 2.5 },
-              achievements: { value: "5", change: 3 }
-            }));
-
-            // Create recent activities from activities data
-            const recentActs = activitiesData.slice(0, 3).map((activity: any) => ({
-              id: activity.id,
-              title: activity.title || 'Activity Completed',
-              description: `${actualChildName} completed ${activity.description || 'an activity'}`,
-              timestamp: new Date(activity.activity_date),
-              icon: <BookOpen className="h-4 w-4" />,
-              type: 'success'
-            }));
-
-            setRecentActivities(recentActs);
-          }
+              activitiesData = data;
+              processActivitiesData(data, childId);
+              return data;
+            });
+          promises.push(activitiesPromise);
         }
 
-        // Fetch events data
-        const { data: eventsData, error: eventsError } = await getEvents();
-
-        if (eventsError) {
-          console.error("Error fetching events:", eventsError);
-        } else if (eventsData) {
-          // Create upcoming events from events data
-          const upcomingEvts = eventsData
-            .filter((event: any) => {
-              try {
-                return new Date(event.date) >= new Date();
-              } catch (dateError) {
-                console.error("Error parsing event date:", dateError);
-                return false;
-              }
-            })
-            .slice(0, 3)
-            .map((event: any) => ({
-              id: event.id,
-              title: event.title,
-              date: new Date(event.date),
-              time: event.time,
-              type: 'primary' as const,
-              location: event.location,
-              description: event.description
-            }));
-
-          setUpcomingEvents(upcomingEvts);
-        }
-
-        // Fetch payment data
-        if (user?.id) {
-          const { data: paymentsData, error: paymentsError } = await getParentPayments(user.id);
-
-          if (paymentsError) {
-            console.error("Error fetching payments:", paymentsError);
-          } else if (paymentsData && paymentsData.length > 0) {
-            // Find the next upcoming payment
-            const upcomingPayments = paymentsData
-              .filter((payment: any) => payment.status === 'pending' && payment.due_date)
-              .sort((a: any, b: any) => {
-                try {
-                  return new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
-                } catch (dateError) {
-                  console.error("Error comparing payment dates:", dateError);
-                  return 0;
-                }
-              });
-
-            if (upcomingPayments.length > 0) {
-              const nextPayment = upcomingPayments[0];
-              try {
-                const dueDate = new Date(nextPayment.due_date!);
-                const today = new Date();
-                const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-                setStats(prev => ({
-                  ...prev,
-                  nextPayment: {
-                    value: `$${nextPayment.amount}`,
-                    dueIn: daysUntilDue > 0 ? `Due in ${daysUntilDue} days` : "Due today"
-                  }
-                }));
-              } catch (dateError) {
-                console.error("Error calculating payment due date:", dateError);
-              }
+        // 2. Fetch events data (only those visible to parents)
+        const eventsPromise = getEvents(true) // true = visibleToParentsOnly
+          .then(({ data, error }) => {
+            if (error) {
+              console.error("Error fetching events:", error);
+              return null;
             }
-          }
+            eventsData = data;
+            processEventsData(data);
+            return data;
+          });
+        promises.push(eventsPromise);
+
+        // 3. Fetch payment data if user exists
+        if (user?.id) {
+          const paymentsPromise = getParentPayments(user.id)
+            .then(({ data, error }) => {
+              if (error) {
+                console.error("Error fetching payments:", error);
+                return null;
+              }
+              paymentsData = data;
+              processPaymentsData(data);
+              return data;
+            });
+          promises.push(paymentsPromise);
         }
+
+        // Execute all promises in parallel
+        await Promise.all(promises);
+
+        // Update cache
+        setDataCache({
+          activities: activitiesData,
+          events: eventsData,
+          payments: paymentsData,
+          lastFetched: Date.now()
+        });
+
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
         showNotification({
@@ -212,8 +190,115 @@ export default function ParentDashboard() {
       }
     };
 
+    // Helper function to process activities data
+    const processActivitiesData = (activitiesData: any[], childId: string) => {
+      if (!activitiesData) return;
+
+      // Calculate activities stats
+      const totalActivities = activitiesData.length;
+      const thisMonthActivities = activitiesData.filter((activity: any) => {
+        try {
+          const activityDate = new Date(activity.activity_date);
+          const now = new Date();
+          return activityDate.getMonth() === now.getMonth() &&
+                 activityDate.getFullYear() === now.getFullYear();
+        } catch (dateError) {
+          console.error("Error parsing activity date:", dateError);
+          return false;
+        }
+      }).length;
+
+      // Update activities stats
+      setStats(prev => ({
+        ...prev,
+        activities: {
+          value: thisMonthActivities.toString(),
+          change: thisMonthActivities - (totalActivities - thisMonthActivities)
+        },
+        // Placeholder for attendance and achievements until we have real data
+        attendance: { value: "92%", change: 2.5 },
+        achievements: { value: "5", change: 3 }
+      }));
+
+      // Create recent activities from activities data
+      const recentActs = activitiesData.slice(0, 3).map((activity: any) => ({
+        id: activity.id,
+        title: activity.title || 'Activity Completed',
+        description: `${actualChildName} completed ${activity.description || 'an activity'}`,
+        timestamp: new Date(activity.activity_date),
+        icon: <BookOpen className="h-4 w-4" />,
+        type: 'success'
+      }));
+
+      setRecentActivities(recentActs);
+    };
+
+    // Helper function to process events data
+    const processEventsData = (eventsData: any[]) => {
+      if (!eventsData) return;
+
+      // Create upcoming events from events data
+      const upcomingEvts = eventsData
+        .filter((event: any) => {
+          try {
+            return new Date(event.date) >= new Date();
+          } catch (dateError) {
+            console.error("Error parsing event date:", dateError);
+            return false;
+          }
+        })
+        .slice(0, 3)
+        .map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          date: new Date(event.date),
+          time: event.time,
+          type: 'primary' as const,
+          location: event.location,
+          description: event.description
+        }));
+
+      setUpcomingEvents(upcomingEvts);
+    };
+
+    // Helper function to process payments data
+    const processPaymentsData = (paymentsData: any[]) => {
+      if (!paymentsData || paymentsData.length === 0) return;
+
+      // Find the next upcoming payment
+      const upcomingPayments = paymentsData
+        .filter((payment: any) => payment.status === 'pending' && payment.due_date)
+        .sort((a: any, b: any) => {
+          try {
+            return new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
+          } catch (dateError) {
+            console.error("Error comparing payment dates:", dateError);
+            return 0;
+          }
+        });
+
+      if (upcomingPayments.length > 0) {
+        const nextPayment = upcomingPayments[0];
+        try {
+          const dueDate = new Date(nextPayment.due_date!);
+          const today = new Date();
+          const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+          setStats(prev => ({
+            ...prev,
+            nextPayment: {
+              value: `$${nextPayment.amount}`,
+              dueIn: daysUntilDue > 0 ? `Due in ${daysUntilDue} days` : "Due today"
+            }
+          }));
+        } catch (dateError) {
+          console.error("Error calculating payment due date:", dateError);
+        }
+      }
+    };
+
     fetchDashboardData();
-  }, [childId, user?.id, actualChildName, showNotification]);
+  }, [childId, user?.id, actualChildName, showNotification, dataCache.lastFetched]);
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -221,6 +306,7 @@ export default function ParentDashboard() {
         <title>Parent Dashboard | Ninio</title>
       </Helmet>
 
+      {/* Sidebar - now gets user info from AuthContext */}
       <Sidebar />
 
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -230,41 +316,52 @@ export default function ParentDashboard() {
           <div className="grid gap-6">
             {/* Child Selector */}
             <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-lg font-medium mb-2">Selected Child: {actualChildName}</h2>
-                  <p className="text-sm text-gray-500">
-                    {children.length > 0
-                      ? `You can view information for ${actualChildName} or select another child below.`
-                      : 'You have not added any children yet. Please add a child in your profile settings.'}
-                  </p>
+              {isLoading && children.length === 0 ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="flex flex-col items-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                    <p className="mt-2 text-sm text-muted-foreground">Loading children information...</p>
+                  </div>
                 </div>
-                {children.length === 0 && (
-                  <Button
-                    onClick={() => window.location.href = '/dashboard/parent/profile'}
-                    variant="outline"
-                  >
-                    Add Child
-                  </Button>
-                )}
-              </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-lg font-medium mb-2">Selected Child: {actualChildName}</h2>
+                      <p className="text-sm text-gray-500">
+                        {children.length > 0
+                          ? `You can view information for ${actualChildName} or select another child below.`
+                          : 'You have not added any children yet. Please add a child in your profile settings.'}
+                      </p>
+                    </div>
+                    {children.length === 0 && (
+                      <Button
+                        onClick={() => window.location.href = '/dashboard/parent/profile'}
+                        variant="outline"
+                      >
+                        Add Child
+                      </Button>
+                    )}
+                  </div>
 
-              {children.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {children.map((child) => (
-                    <Button
-                      key={child.id}
-                      variant={childId === child.id ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setChildId(child.id);
-                        setActualChildName(`${child.first_name} ${child.last_name}`);
-                      }}
-                    >
-                      {child.first_name} {child.last_name}
-                    </Button>
-                  ))}
-                </div>
+                  {children.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {children.map((child) => (
+                        <Button
+                          key={child.id}
+                          variant={childId === child.id ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            setChildId(child.id);
+                            setActualChildName(`${child.first_name} ${child.last_name}`);
+                          }}
+                        >
+                          {child.first_name} {child.last_name}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -277,6 +374,7 @@ export default function ParentDashboard() {
                 icon={<BookOpen className="h-8 w-8" />}
                 animate
                 animationDelay={100}
+                isLoading={isLoading}
               />
               <StatCard
                 title="Attendance"
@@ -285,10 +383,12 @@ export default function ParentDashboard() {
                 icon={<Users className="h-8 w-8" />}
                 animate
                 animationDelay={200}
+                isLoading={isLoading}
               />
               <StatCard
                 title="Achievements"
                 value={stats.achievements.value}
+                isLoading={isLoading}
                 change={stats.achievements.change}
                 icon={<GraduationCap className="h-8 w-8" />}
                 animate
@@ -301,6 +401,7 @@ export default function ParentDashboard() {
                 icon={<DollarSign className="h-8 w-8" />}
                 animate
                 animationDelay={400}
+                isLoading={isLoading}
               />
             </div>
 
@@ -312,6 +413,7 @@ export default function ParentDashboard() {
                 icon={<Calendar className="h-5 w-5" />}
                 animate
                 animationDelay={500}
+                isLoading={isLoading}
               >
                 <div className="space-y-4">
                   {upcomingEvents.length > 0 ? (
@@ -337,6 +439,7 @@ export default function ParentDashboard() {
                 animate
                 animationDelay={600}
                 onViewAll={() => console.log('View all activities')}
+                isLoading={isLoading}
               />
             </div>
 

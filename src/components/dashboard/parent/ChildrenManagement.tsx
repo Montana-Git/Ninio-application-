@@ -92,10 +92,18 @@ const ChildrenManagement = () => {
 
   // Handle adding a new child
   const handleAddChild = async (values: ChildFormValues) => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User information not available. Please try logging in again.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
+      // Format the data according to the API expectations
       const childData = {
         parent_id: user.id,
         first_name: values.firstName,
@@ -105,12 +113,24 @@ const ChildrenManagement = () => {
         special_notes: values.specialNotes || "",
       };
 
+      console.log("Adding child with data:", childData);
+
       const { data, error } = await addChild(childData);
-      if (error) throw error;
+
+      if (error) {
+        console.error("API returned error:", error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error("No data returned from API");
+      }
+
+      console.log("Child added successfully:", data);
 
       // Add the new child to the list
       setChildren((prev) => [...prev, data]);
-      
+
       // Close dialog and reset form
       setIsAddDialogOpen(false);
       addForm.reset();
@@ -119,11 +139,27 @@ const ChildrenManagement = () => {
         title: "Success",
         description: "Child added successfully!",
       });
-    } catch (error) {
+
+      // Refresh the children list to ensure we have the latest data
+      fetchChildren();
+
+    } catch (error: any) {
       console.error("Error adding child:", error);
+
+      // Provide more specific error messages
+      let errorMessage = "Failed to add child. Please try again.";
+
+      if (error.code === "PGRST301" || error.status === 403) {
+        errorMessage = "Permission denied. You don't have permission to add a child. Please contact support.";
+      } else if (error.code === "PGRST404" || error.status === 404) {
+        errorMessage = "The API endpoint was not found. Please check your connection.";
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+
       toast({
         title: "Error",
-        description: "Failed to add child. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -133,10 +169,27 @@ const ChildrenManagement = () => {
 
   // Handle editing a child
   const handleEditChild = async (values: ChildFormValues) => {
-    if (!user?.id || !selectedChild) return;
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User information not available. Please try logging in again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedChild) {
+      toast({
+        title: "Error",
+        description: "No child selected for editing.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
+      // Format the data according to the API expectations
       const childData = {
         parent_id: user.id,
         first_name: values.firstName,
@@ -146,14 +199,26 @@ const ChildrenManagement = () => {
         special_notes: values.specialNotes || "",
       };
 
+      console.log("Updating child with ID:", selectedChild.id, "Data:", childData);
+
       const { data, error } = await updateChild(selectedChild.id, childData);
-      if (error) throw error;
+
+      if (error) {
+        console.error("API returned error:", error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error("No data returned from API");
+      }
+
+      console.log("Child updated successfully:", data);
 
       // Update the child in the list
       setChildren((prev) =>
         prev.map((child) => (child.id === selectedChild.id ? data : child))
       );
-      
+
       // Close dialog and reset form
       setIsEditDialogOpen(false);
       setSelectedChild(null);
@@ -162,11 +227,27 @@ const ChildrenManagement = () => {
         title: "Success",
         description: "Child updated successfully!",
       });
-    } catch (error) {
+
+      // Refresh the children list to ensure we have the latest data
+      fetchChildren();
+
+    } catch (error: any) {
       console.error("Error updating child:", error);
+
+      // Provide more specific error messages
+      let errorMessage = "Failed to update child. Please try again.";
+
+      if (error.code === "PGRST301" || error.status === 403) {
+        errorMessage = "Permission denied. You don't have permission to update a child. Please contact support.";
+      } else if (error.code === "PGRST404" || error.status === 404) {
+        errorMessage = "The API endpoint was not found. Please check your connection.";
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+
       toast({
         title: "Error",
-        description: "Failed to update child. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -194,11 +275,11 @@ const ChildrenManagement = () => {
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
-      
+
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
         age--;
       }
-      
+
       return age;
     } catch (error) {
       return "N/A";
@@ -214,9 +295,18 @@ const ChildrenManagement = () => {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Child
+            <Button disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Child
+                </>
+              )}
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -297,7 +387,15 @@ const ChildrenManagement = () => {
         </Dialog>
       </CardHeader>
       <CardContent>
-        {children.length === 0 ? (
+        {isLoading && children.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4"></div>
+            <h3 className="text-lg font-medium">Loading Children</h3>
+            <p className="text-sm text-muted-foreground mt-2 mb-6">
+              Please wait while we load your children's information...
+            </p>
+          </div>
+        ) : children.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
             <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">No Children Added</h3>

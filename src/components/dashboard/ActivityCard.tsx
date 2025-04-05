@@ -30,6 +30,7 @@ interface ActivityCardProps {
   onViewAll?: () => void;
   animate?: boolean;
   animationDelay?: number;
+  isLoading?: boolean;
 }
 
 const ActivityCard: React.FC<ActivityCardProps> = ({
@@ -42,6 +43,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   onViewAll,
   animate = true,
   animationDelay = 0,
+  isLoading = false,
 }) => {
   const getActivityTypeStyles = (type: Activity['type'] = 'default') => {
     const styles = {
@@ -51,7 +53,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       error: 'bg-destructive/20 text-destructive',
       info: 'bg-info/20 text-info',
     };
-    
+
     return styles[type];
   };
 
@@ -61,6 +63,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       className={className}
       animate={animate}
       animationDelay={animationDelay}
+      isLoading={isLoading}
       footer={
         showViewAll && activities.length > 0 ? (
           <Button variant="ghost" className="w-full" onClick={onViewAll}>

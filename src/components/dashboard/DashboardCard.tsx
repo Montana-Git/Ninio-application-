@@ -18,6 +18,7 @@ interface DashboardCardProps {
   animate?: boolean;
   animationDelay?: number;
   animationType?: AnimationType;
+  isLoading?: boolean;
 }
 
 const DashboardCard: React.FC<DashboardCardProps> = ({
@@ -34,6 +35,7 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
   animate = true,
   animationDelay = 0,
   animationType,
+  isLoading = false,
 }) => {
   const variantStyles = {
     default: '',
@@ -64,7 +66,16 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
         {icon && <div className="h-8 w-8 text-muted-foreground">{icon}</div>}
       </CardHeader>
       <CardContent className={cn('pt-2', contentClassName)}>
-        {children}
+        {isLoading ? (
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        ) : (
+          children
+        )}
       </CardContent>
       {footer && (
         <CardFooter className={cn('pt-2', footerClassName)}>

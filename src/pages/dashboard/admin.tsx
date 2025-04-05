@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import Sidebar from "@/components/dashboard/Sidebar";
 import ActivitiesManagement from "@/components/dashboard/admin/ActivitiesManagement";
 import EventsManagement from "@/components/dashboard/admin/EventsManagement";
+import EventVisibilityManager from "@/components/dashboard/admin/EventVisibilityManager";
 import PaymentManagement from "@/components/dashboard/admin/PaymentManagement";
 import ChildrenManagement from "@/components/dashboard/admin/ChildrenManagement";
 import ParentsManagement from "@/components/dashboard/admin/ParentsManagement";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -26,6 +28,7 @@ const AdminDashboard = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("overview");
   const { user } = useAuth();
+  const [showEventVisibility, setShowEventVisibility] = useState(false);
 
   // Dashboard stats state
   const [dashboardStats, setDashboardStats] = useState([
@@ -60,6 +63,16 @@ const AdminDashboard = () => {
   ]);
 
   const [isLoading, setIsLoading] = useState(true);
+
+  // Ensure user is authenticated
+  useEffect(() => {
+    if (!user) {
+      console.log('No user found, redirecting to login');
+      // You could add a redirect to login here if needed
+    } else {
+      console.log(`User authenticated as ${user.role}`);
+    }
+  }, [user]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -329,7 +342,23 @@ const AdminDashboard = () => {
 
             {/* Events Tab */}
             <TabsContent value="events">
-              <EventsManagement />
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">Events Management</h2>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEventVisibility(!showEventVisibility)}
+                  >
+                    {showEventVisibility ? "Manage Events" : "Manage Event Visibility"}
+                  </Button>
+                </div>
+
+                {showEventVisibility ? (
+                  <EventVisibilityManager />
+                ) : (
+                  <EventsManagement />
+                )}
+              </div>
             </TabsContent>
 
             {/* Payments Tab */}

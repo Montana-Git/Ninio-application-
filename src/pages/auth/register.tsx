@@ -409,28 +409,34 @@ const RegisterPage = () => {
                 )}
 
                 {form.watch("role") === "parent" &&
-                  form.watch("childrenCount") > 0 &&
-                  childrenNames.map((_, index) => (
-                    <FormField
-                      key={index}
-                      control={form.control}
-                      name={`childrenNames.${index}`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            {t("auth.register.childName")} {index + 1}
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder={`Child ${index + 1} name`}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ))}
+                  form.watch("childrenCount") > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-md font-medium">{t("auth.register.childrenNames")}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {childrenNames.map((_, index) => (
+                        <FormField
+                          key={index}
+                          control={form.control}
+                          name={`childrenNames.${index}`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {t("auth.register.childName", { number: index + 1 })}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={`Child ${index + 1} name`}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  )}
 
                 <FormField
                   control={form.control}
@@ -445,7 +451,7 @@ const RegisterPage = () => {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel>
-                          {t("auth.register.termsAndConditions")}
+                          {t("auth.register.terms")}
                         </FormLabel>
                         <FormMessage />
                       </div>
@@ -465,7 +471,7 @@ const RegisterPage = () => {
                   {isSubmitting ? (
                     <LoadingSpinner size="sm" text={t("auth.register.submitting")} />
                   ) : (
-                    t("auth.register.submit")
+                    t("auth.register.button")
                   )}
                 </Button>
               </form>
@@ -474,7 +480,7 @@ const RegisterPage = () => {
           </CardContent>
           <CardFooter className="flex justify-center">
             <div className="text-sm text-gray-600">
-              {t("auth.register.alreadyHaveAccount")}{" "}
+              {t("auth.register.hasAccount")}{" "}
               <Link to="/auth/login" className="text-primary hover:underline">
                 {t("auth.register.login")}
               </Link>

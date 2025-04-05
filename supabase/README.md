@@ -4,7 +4,7 @@ This directory contains SQL migration files for the Supabase database.
 
 ## How to Apply Migrations
 
-You can apply these migrations using the Supabase CLI or by running them directly in the Supabase SQL Editor.
+You can apply these migrations using the Supabase CLI, the SQL Editor in the Supabase Dashboard, or using the provided script.
 
 ### Using Supabase CLI
 
@@ -22,6 +22,54 @@ You can apply these migrations using the Supabase CLI or by running them directl
    ```bash
    supabase db push
    ```
+
+### Using the SQL Editor in Supabase Dashboard
+
+1. Log in to your Supabase dashboard
+2. Navigate to the SQL Editor
+3. Copy the contents of the migration file you want to apply
+4. Paste it into the SQL Editor and run the query
+
+### Using the Provided Script
+
+We've included a script to help you apply migrations:
+
+1. Make sure you have the required environment variables set:
+   - `VITE_SUPABASE_URL`: Your Supabase project URL
+   - `VITE_SUPABASE_SERVICE_KEY`: Your Supabase service role key
+
+2. Run the script:
+   ```bash
+   node scripts/apply-migrations.js
+   ```
+
+   To apply only the latest migration:
+   ```bash
+   node scripts/apply-migrations.js --latest
+   ```
+
+## Fixing RLS Policies for Admin Access
+
+If you're having issues with the admin dashboard not showing children or parents, you may need to update your Row Level Security (RLS) policies. The latest migration file (`20240710000001_fix_rls_policies_for_admin.sql`) addresses this issue.
+
+This migration:
+
+1. Updates the RLS policies to allow admins to view and manage all users and children
+2. Adds temporary development policies for easier testing (these should be removed in production)
+
+After applying this migration, make sure to:
+
+1. Sign out and sign back in to refresh your session
+2. Check that your user has the admin role correctly set
+
+## Troubleshooting
+
+If you're still having issues after applying the migrations:
+
+1. Check the browser console for any error messages
+2. Verify that your user has the correct role (admin)
+3. Try clearing your browser cache and local storage
+4. Ensure your Supabase project has the correct tables and policies
 
 ### Using Supabase SQL Editor
 

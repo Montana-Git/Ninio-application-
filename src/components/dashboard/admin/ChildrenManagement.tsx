@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { PlusCircle, Edit, Trash2, Search, Calendar, Info } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Search, Calendar, Info, Loader2, RefreshCw } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/contexts/AuthContext";
+import { getChildren, addChild, updateChild, deleteChild, getUsers } from "@/lib/api";
+import { toast } from "@/components/ui/use-toast";
 
 import {
   Table,
@@ -43,6 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Interface for the admin view of a child
 interface Child {
   id: string;
   firstName: string;
@@ -50,6 +54,7 @@ interface Child {
   dateOfBirth: string;
   ageGroup: string;
   parentName: string;
+  parentId: string;
   allergies?: string;
   specialNotes?: string;
   avatarUrl?: string;
@@ -59,74 +64,49 @@ interface ChildrenManagementProps {
   children?: Child[];
 }
 
-const defaultChildren: Child[] = [
-  {
-    id: "1",
-    firstName: "Emma",
-    lastName: "Johnson",
-    dateOfBirth: "2019-05-12",
-    ageGroup: "3-4 years",
-    parentName: "Jane Johnson",
-    allergies: "Peanuts",
-    specialNotes: "Needs extra attention during nap time",
-    avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Emma",
-  },
-  {
-    id: "2",
-    firstName: "Noah",
-    lastName: "Smith",
-    dateOfBirth: "2018-09-23",
-    ageGroup: "4-5 years",
-    parentName: "Michael Smith",
-    allergies: "None",
-    specialNotes: "",
-    avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Noah",
-  },
-  {
-    id: "3",
-    firstName: "Olivia",
-    lastName: "Williams",
-    dateOfBirth: "2020-02-15",
-    ageGroup: "2-3 years",
-    parentName: "Sarah Williams",
-    allergies: "Dairy",
-    specialNotes: "Has a comfort toy (teddy bear)",
-    avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Olivia",
-  },
-  {
-    id: "4",
-    firstName: "Liam",
-    lastName: "Brown",
-    dateOfBirth: "2019-11-30",
-    ageGroup: "3-4 years",
-    parentName: "David Brown",
-    allergies: "None",
-    specialNotes: "Shy with new people",
-    avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Liam",
-  },
-];
+// Map from database format to admin view format
+const mapDbChildToAdminView = async (dbChild: any, parents: any[]): Promise<Child> => {
+  // Find the parent in the parents list
+  const parent = parents.find(p => p.id === dbChild.parent_id) || { first_name: 'Unknown', last_name: 'Parent' };
+
+  return {
+    id: dbChild.id,
+    firstName: dbChild.first_name,
+    lastName: dbChild.last_name,
+    dateOfBirth: dbChild.date_of_birth,
+    ageGroup: dbChild.age_group,
+    parentId: dbChild.parent_id,
+    parentName: `${parent.first_name} ${parent.last_name}`,
+    allergies: dbChild.allergies || '',
+    specialNotes: dbChild.special_notes || '',
+    avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${dbChild.first_name}`,
+  };
+};
 
 const formSchema = z.object({
   firstName: z.string().min(2, "First name is required"),
   lastName: z.string().min(2, "Last name is required"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
   ageGroup: z.string().min(1, "Age group is required"),
-  parentName: z.string().min(2, "Parent name is required"),
+  parentId: z.string().min(1, "Parent is required"),
   allergies: z.string().optional(),
   specialNotes: z.string().optional(),
 });
 
-const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
-  children = defaultChildren,
-}) => {
+const ChildrenManagement: React.FC<ChildrenManagementProps> = () => {
   const { t } = useTranslation();
-  const [childrenList, setChildrenList] = useState<Child[]>(children);
+  const { user } = useAuth();
+  const [childrenList, setChildrenList] = useState<Child[]>([]);
+  const [parentsList, setParentsList] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [currentChild, setCurrentChild] = useState<Child | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -135,11 +115,90 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
       lastName: "",
       dateOfBirth: "",
       ageGroup: "",
-      parentName: "",
+      parentId: "",
       allergies: "",
       specialNotes: "",
     },
   });
+
+  // Function to fetch children and parents data
+  const fetchData = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    try {
+      // Fetch parents first
+      const { data: parentsData, error: parentsError } = await getUsers("parent");
+
+      if (parentsError) {
+        throw new Error(`Error fetching parents: ${parentsError.message}`);
+      }
+
+      console.log('Parents data:', parentsData);
+      setParentsList(parentsData || []);
+
+      // Then fetch all children
+      const { data: childrenData, error: childrenError } = await getChildren();
+
+      if (childrenError) {
+        throw new Error(`Error fetching children: ${childrenError.message}`);
+      }
+
+      console.log('Children data:', childrenData);
+
+      if (childrenData && parentsData) {
+        // Map database children to admin view format
+        const mappedChildren = await Promise.all(
+          (childrenData || []).map(child => mapDbChildToAdminView(child, parentsData))
+        );
+
+        console.log('Mapped children:', mappedChildren);
+        setChildrenList(mappedChildren);
+      } else {
+        console.log('No children or parents data available');
+        setChildrenList([]);
+      }
+
+      // Update last refreshed timestamp
+      setLastRefreshed(new Date());
+
+      if (!isInitialLoad) {
+        toast({
+          title: "Data Refreshed",
+          description: "Children data has been refreshed.",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load children data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      if (isInitialLoad) {
+        setIsLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
+    }
+  }, []);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchData(true);
+
+    // Set up polling to refresh data every 30 seconds
+    const intervalId = setInterval(() => {
+      fetchData(false);
+    }, 30000); // 30 seconds
+
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [fetchData]);
 
   const filteredChildren = childrenList.filter(
     (child) =>
@@ -148,57 +207,159 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
       child.parentName.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const handleAddChild = (data: z.infer<typeof formSchema>) => {
-    const newChild: Child = {
-      id: Math.random().toString(36).substring(2, 9),
-      firstName: data.firstName,
-      lastName: data.lastName,
-      dateOfBirth: data.dateOfBirth,
-      ageGroup: data.ageGroup,
-      parentName: data.parentName,
-      allergies: data.allergies,
-      specialNotes: data.specialNotes,
-      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.firstName}`,
-    };
-    setChildrenList([...childrenList, newChild]);
-    setIsAddDialogOpen(false);
-    form.reset();
+  const handleAddChild = async (data: z.infer<typeof formSchema>) => {
+    setIsLoading(true);
+    try {
+      // Find the parent to get their ID
+      const parent = parentsList.find(p => p.id === data.parentId);
+
+      if (!parent) {
+        throw new Error("Parent not found");
+      }
+
+      // Format data for API
+      const childData = {
+        parent_id: data.parentId,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        date_of_birth: data.dateOfBirth,
+        age_group: data.ageGroup,
+        allergies: data.allergies || "",
+        special_notes: data.specialNotes || "",
+      };
+
+      // Call API to add child
+      const { data: newData, error } = await addChild(childData);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!newData) {
+        throw new Error("No data returned from API");
+      }
+
+      // Map the returned data to our format
+      const newChild = await mapDbChildToAdminView(newData, parentsList);
+
+      // Update state
+      setChildrenList([...childrenList, newChild]);
+      setIsAddDialogOpen(false);
+      form.reset();
+
+      toast({
+        title: "Success",
+        description: "Child added successfully",
+      });
+
+      // Refresh data to ensure we have the latest
+      fetchData(false);
+    } catch (error: any) {
+      console.error("Error adding child:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add child",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEditChild = (data: z.infer<typeof formSchema>) => {
+  const handleEditChild = async (data: z.infer<typeof formSchema>) => {
     if (!currentChild) return;
 
-    const updatedChildren = childrenList.map((child) =>
-      child.id === currentChild.id
-        ? {
-            ...child,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            dateOfBirth: data.dateOfBirth,
-            ageGroup: data.ageGroup,
-            parentName: data.parentName,
-            allergies: data.allergies,
-            specialNotes: data.specialNotes,
-          }
-        : child,
-    );
+    setIsLoading(true);
+    try {
+      // Format data for API
+      const childData = {
+        parent_id: data.parentId,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        date_of_birth: data.dateOfBirth,
+        age_group: data.ageGroup,
+        allergies: data.allergies || "",
+        special_notes: data.specialNotes || "",
+      };
 
-    setChildrenList(updatedChildren);
-    setIsEditDialogOpen(false);
-    setCurrentChild(null);
-    form.reset();
+      // Call API to update child
+      const { data: updatedData, error } = await updateChild(currentChild.id, childData);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!updatedData) {
+        throw new Error("No data returned from API");
+      }
+
+      // Map the returned data to our format
+      const updatedChild = await mapDbChildToAdminView(updatedData, parentsList);
+
+      // Update state
+      setChildrenList(
+        childrenList.map((child) =>
+          child.id === currentChild.id ? updatedChild : child
+        )
+      );
+
+      setIsEditDialogOpen(false);
+      setCurrentChild(null);
+      form.reset();
+
+      toast({
+        title: "Success",
+        description: "Child updated successfully",
+      });
+
+      // Refresh data to ensure we have the latest
+      fetchData(false);
+    } catch (error: any) {
+      console.error("Error updating child:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update child",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDeleteChild = () => {
+  const handleDeleteChild = async () => {
     if (!currentChild) return;
 
-    const updatedChildren = childrenList.filter(
-      (child) => child.id !== currentChild.id,
-    );
+    setIsLoading(true);
+    try {
+      // Call API to delete child
+      const { data, error } = await deleteChild(currentChild.id);
 
-    setChildrenList(updatedChildren);
-    setIsDeleteDialogOpen(false);
-    setCurrentChild(null);
+      if (error) {
+        throw error;
+      }
+
+      // Update state
+      setChildrenList(childrenList.filter((child) => child.id !== currentChild.id));
+      setIsDeleteDialogOpen(false);
+      setCurrentChild(null);
+
+      toast({
+        title: "Success",
+        description: "Child deleted successfully",
+      });
+
+      // Refresh data to ensure we have the latest
+      fetchData(false);
+    } catch (error: any) {
+      console.error("Error deleting child:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete child",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const openEditDialog = (child: Child) => {
@@ -208,7 +369,7 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
       lastName: child.lastName,
       dateOfBirth: child.dateOfBirth,
       ageGroup: child.ageGroup,
-      parentName: child.parentName,
+      parentId: child.parentId,
       allergies: child.allergies || "",
       specialNotes: child.specialNotes || "",
     });
@@ -338,12 +499,22 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
                 </div>
                 <FormField
                   control={form.control}
-                  name="parentName"
+                  name="parentId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Parent Name</FormLabel>
+                      <FormLabel>Parent</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter parent name" {...field} />
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          {...field}
+                        >
+                          <option value="">Select parent</option>
+                          {parentsList.map((parent) => (
+                            <option key={parent.id} value={parent.id}>
+                              {parent.first_name} {parent.last_name}
+                            </option>
+                          ))}
+                        </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -397,33 +568,77 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
       </div>
 
       <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder={t("admin.children.search")}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex flex-col sm:flex-row gap-4 justify-between">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder={t("admin.children.search")}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-500">
+              Last refreshed: {lastRefreshed.toLocaleTimeString()}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchData(false)}
+              disabled={isRefreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableCaption>
-            List of children enrolled in the kindergarten
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Child</TableHead>
-              <TableHead className="hidden md:table-cell">Age</TableHead>
-              <TableHead className="hidden sm:table-cell">Parent</TableHead>
-              <TableHead className="hidden lg:table-cell">Allergies</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredChildren.length > 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-lg text-muted-foreground">Loading children data...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="mb-4 flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">
+              Last updated: {lastRefreshed.toLocaleTimeString()}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchData(false)}
+              disabled={isRefreshing}
+              className="flex items-center gap-2"
+            >
+              {isRefreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
+          <Table>
+            <TableCaption>
+              List of children enrolled in the kindergarten
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Child</TableHead>
+                <TableHead className="hidden md:table-cell">Age</TableHead>
+                <TableHead className="hidden sm:table-cell">Parent</TableHead>
+                <TableHead className="hidden lg:table-cell">Allergies</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredChildren.length > 0 ? (
               filteredChildren.map((child) => (
                 <TableRow key={child.id}>
                   <TableCell className="font-medium">
@@ -526,13 +741,27 @@ const ChildrenManagement: React.FC<ChildrenManagementProps> = ({
                 >
                   {searchTerm
                     ? "No children found matching your search."
-                    : t("admin.children.noChildren")}
+                    : (
+                      <div className="flex flex-col items-center py-4">
+                        <p className="mb-4">No children found. Please add children using the 'Add Child' button above.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchData(false)}
+                          className="flex items-center gap-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Refresh Data
+                        </Button>
+                      </div>
+                    )}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+      )}
 
       {/* View Child Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>

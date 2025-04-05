@@ -14,12 +14,8 @@ const ParentChildrenPage = () => {
         <title>Children Management | Ninio Kindergarten</title>
       </Helmet>
 
-      {/* Sidebar */}
-      <Sidebar
-        userName={`${user?.first_name || ""} ${user?.last_name || ""}`}
-        userRole="parent"
-        userAvatar={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.first_name || "User"}`}
-      />
+      {/* Sidebar - now gets user info from AuthContext */}
+      <Sidebar />
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 overflow-hidden">

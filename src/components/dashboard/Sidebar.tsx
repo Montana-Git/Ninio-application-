@@ -95,13 +95,20 @@ const LogoutButton = forwardRef<
 LogoutButton.displayName = "LogoutButton";
 
 const Sidebar = ({
-  userName = "Jane Doe",
-  userRole = "parent",
-  userAvatar = "https://api.dicebear.com/7.x/avataaars/svg?seed=Jane",
+  userName,
+  userRole,
+  userAvatar,
 }: SidebarProps) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname.includes(path);
   const { unreadCount } = useNotification();
+  const { user } = useAuth();
+
+  // Use props if provided, otherwise fall back to user context
+  const displayName = userName || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'User';
+  const displayRole = userRole || user?.role || 'parent';
+  const displayAvatar = userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.first_name || 'User'}`;
+
 
   const parentMenuItems: MenuItem[] = [
     { icon: <Home size={20} />, label: "Dashboard", path: "/dashboard/parent" },
@@ -153,29 +160,29 @@ const Sidebar = ({
     { icon: <Settings size={20} />, label: "Settings", path: "/dashboard/admin/settings" },
   ];
 
-  const menuItems = userRole === "admin" ? adminMenuItems : parentMenuItems;
+  const menuItems = displayRole === "admin" ? adminMenuItems : parentMenuItems;
 
   return (
     <div className="h-full w-[250px] bg-background border-r flex flex-col">
       {/* User Profile Section */}
       <div className="p-6 flex flex-col items-center">
         <Avatar className="h-20 w-20 mb-2">
-          <AvatarImage src={userAvatar} alt={userName} />
+          <AvatarImage src={displayAvatar} alt={displayName} />
           <AvatarFallback>
-            {userName
+            {displayName
               .split(" ")
               .map((n) => n[0])
               .join("")}
           </AvatarFallback>
         </Avatar>
-        <h3 className="font-medium text-lg">{userName}</h3>
-        <p className="text-muted-foreground text-sm capitalize">{userRole}</p>
+        <h3 className="font-medium text-lg">{displayName}</h3>
+        <p className="text-muted-foreground text-sm capitalize">{displayRole}</p>
       </div>
 
       <Separator />
 
       {/* Navigation Menu - Only show full menu for parent users */}
-      {userRole === "parent" && (
+      {displayRole === "parent" && (
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
             {menuItems.map((item, index) => (
@@ -213,7 +220,7 @@ const Sidebar = ({
       )}
 
       {/* Admin Profile Menu - Simplified for admin users */}
-      {userRole === "admin" && (
+      {displayRole === "admin" && (
         <div className="flex-1 p-4">
           <div className="mb-6">
             <h3 className="font-medium text-sm uppercase text-muted-foreground mb-3">Account</h3>

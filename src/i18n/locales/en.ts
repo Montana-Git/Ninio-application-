@@ -59,6 +59,7 @@ export default {
   "auth.register.childName": "Child {{number}} Name",
   "auth.register.terms": "I agree to the terms and conditions",
   "auth.register.button": "Create Account",
+  "auth.register.submitting": "Creating Account...",
   "auth.register.hasAccount": "Already have an account?",
   "auth.register.login": "Sign in",
 

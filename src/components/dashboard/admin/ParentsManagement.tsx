@@ -37,6 +37,7 @@ import {
   User as UserIcon,
   Mail,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
@@ -125,13 +126,15 @@ const ParentsManagement = ({ parents = [] }: ParentsManagementProps) => {
         if (error) throw error;
 
         if (data) {
-          // Transform data to include children_count (would come from a real API)
-          const parentsWithCounts = data.map(parent => ({
+          // Transform data to include status if not present
+          const parentsWithStatus = data.map(parent => ({
             ...parent,
-            children_count: 0, // This would be fetched from a real API
-            status: "active" as const // Default status
+            children_count: parent.children_count || 0, // Use the count from API or default to 0
+            status: parent.status || "active" as const // Default status
           }));
-          setParentsList(parentsWithCounts);
+          console.log('Parents with children counts:', parentsWithStatus);
+          setParentsList(parentsWithStatus);
+          setIsLoadingParents(false); // Make sure to set loading to false
         }
       } catch (error) {
         console.error('Error fetching parents:', error);
@@ -473,8 +476,30 @@ const ParentsManagement = ({ parents = [] }: ParentsManagementProps) => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            No parents found. {searchTerm && "Try a different search term."}
+          <div className="flex flex-col items-center py-8 text-gray-500">
+            <p className="mb-4">No parents found. {searchTerm && "Try a different search term."}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsLoadingParents(true);
+                getUsers("parent").then(({ data }) => {
+                  if (data) {
+                    const parentsWithStatus = data.map(parent => ({
+                      ...parent,
+                      children_count: parent.children_count || 0,
+                      status: parent.status || "active" as const
+                    }));
+                    setParentsList(parentsWithStatus);
+                  }
+                  setIsLoadingParents(false);
+                });
+              }}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh Data
+            </Button>
           </div>
         )}
       </div>
