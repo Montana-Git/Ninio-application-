@@ -186,7 +186,11 @@ export default function ParentDashboard() {
           type: "error"
         });
       } finally {
-        setIsLoading(false);
+        // Add a small delay to ensure UI updates properly
+        setTimeout(() => {
+          setIsLoading(false);
+          console.log('Dashboard data loaded, setting isLoading to false');
+        }, 300);
       }
     };
 
@@ -444,7 +448,7 @@ export default function ParentDashboard() {
             </div>
 
             {/* Payments Section */}
-            <PaymentSection />
+            <PaymentSection childName={actualChildName} />
           </div>
         </main>
       </div>

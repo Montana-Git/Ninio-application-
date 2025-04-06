@@ -56,6 +56,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { getPayments, getParentPayments, processPayment, generateReceipt } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePayments } from "@/hooks/usePayments";
 import { PaymentForm, PaymentReceipt } from "@/components/ui/payment";
@@ -96,7 +97,7 @@ interface PaymentSectionProps {
 const PaymentSection = ({
   paymentHistory: propPaymentHistory,
   duePayments: propDuePayments,
-  childName = "Emma",
+  childName = "your child",
 }: PaymentSectionProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -128,6 +129,11 @@ const PaymentSection = ({
   const { trackPayment, trackPaymentSuccess, trackPaymentFailed } = useAnalytics();
   const { user } = useAuth();
 
+  // Log props for debugging
+  useEffect(() => {
+    console.log('PaymentSection props:', { childName, paymentHistory: propPaymentHistory?.length || 0, duePayments: propDuePayments?.length || 0 });
+  }, [childName, propPaymentHistory, propDuePayments]);
+
   useEffect(() => {
     const fetchPayments = async () => {
       // If payment history is provided as props, use it
@@ -139,24 +145,47 @@ const PaymentSection = ({
         try {
           // Get parent payments from Supabase
           const parentId = user?.id;
+          console.log('Fetching payments for parent ID:', parentId);
+
           if (parentId) {
+            // First try to get all payments to see what's in the database
+            try {
+              const allPaymentsResult = await supabase.rpc('debug_payments');
+              console.log('All payments in database:', allPaymentsResult.data);
+
+              // Check if there are any payments for this parent
+              const parentPayments = allPaymentsResult.data?.filter((p: any) => p.parent_id === parentId);
+              console.log(`Found ${parentPayments?.length || 0} payments for parent ID ${parentId} in debug data`);
+            } catch (debugError) {
+              console.error('Error fetching debug payments:', debugError);
+            }
+
+            // Now get the parent's payments using the function
             const { data, error } = await getParentPayments(parentId);
-            if (error) throw new Error(error.message);
+            if (error) {
+              console.error('Error fetching parent payments:', error);
+              throw new Error(error.message);
+            }
+
+            console.log(`Retrieved ${data?.length || 0} payments for parent ID ${parentId} from getParentPayments`);
 
             if (data && data.length > 0) {
               // Transform the data to match our Payment interface
+              console.log('Raw payment data from API:', data);
               const formattedPayments = data.map((item: any) => ({
                 id: item.payment_id,
                 date: item.date,
                 amount: item.amount,
                 status: item.status || "paid",
-                description: item.payment_type,
+                description: `Payment for ${item.child_name || childName || 'Child'} - ${item.category || item.payment_type || 'General'}`,
                 method: item.payment_method,
                 receiptUrl: item.payment_id, // Use payment ID as receipt reference
               }));
+              console.log('Formatted payments:', formattedPayments);
               setPaymentHistory(formattedPayments);
             } else {
               // If no payment history found, use empty array
+              console.log('No payments found for parent ID:', parentId);
               setPaymentHistory([]);
             }
           }

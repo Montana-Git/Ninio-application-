@@ -190,7 +190,17 @@ const Sidebar = ({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Link to={item.path}>
+                      <Link to={item.path} onClick={() => {
+                        // If this is the payments link, scroll to the payments section
+                        if (item.label === "Payments") {
+                          setTimeout(() => {
+                            const paymentsSection = document.getElementById("payments-section");
+                            if (paymentsSection) {
+                              paymentsSection.scrollIntoView({ behavior: "smooth" });
+                            }
+                          }, 100);
+                        }
+                      }}>
                         <Button
                           variant={isActive(item.path) ? "secondary" : "ghost"}
                           className={cn(

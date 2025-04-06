@@ -18,6 +18,9 @@ const ParentProfilePage = lazy(
 const ParentChildrenPage = lazy(
   () => import("./pages/dashboard/parent/children"),
 );
+const ParentPaymentsPage = lazy(
+  () => import("./pages/dashboard/parent/payments"),
+);
 const AdminDashboard = lazy(() => import("./pages/dashboard/admin"));
 const AdminProfilePage = lazy(() => import("./pages/dashboard/admin/profile"));
 const ProgramsPage = lazy(() => import("./pages/programs"));
@@ -131,6 +134,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="parent">
                   <ParentChildrenPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/parent/payments"
+              element={
+                <ProtectedRoute requiredRole="parent">
+                  <ParentPaymentsPage />
                 </ProtectedRoute>
               }
             />

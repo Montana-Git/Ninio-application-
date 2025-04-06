@@ -64,6 +64,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getPayments, getUsers, getChildren, updatePaymentStatus, processRefund, addPayment } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 import { PaymentReceipt } from "@/components/ui/payment";
 import { PaymentStatus } from "@/services/payment-gateway-service";
 import paymentAnalyticsService from "@/services/payment-analytics-service";
@@ -435,6 +436,24 @@ const PaymentManagement = ({ payments = [] }: PaymentManagementProps) => {
 
       // Add payment to database
       console.log('Adding payment with data:', paymentData);
+      console.log('Parent ID:', paymentData.parent_id);
+
+      // Verify the parent exists
+      const { data: parentData, error: parentError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name')
+        .eq('id', paymentData.parent_id)
+        .single();
+
+      if (parentError) {
+        console.error('Error verifying parent:', parentError);
+        alert(`Error verifying parent: ${parentError.message}`);
+        return;
+      }
+
+      console.log('Parent verified:', parentData);
+
+      // Add the payment
       const { data, error } = await addPayment(paymentData);
 
       if (error) {

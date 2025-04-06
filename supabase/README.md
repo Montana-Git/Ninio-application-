@@ -67,6 +67,29 @@ This migration:
 2. Sets up RLS policies to allow authenticated users to view and manage payments
 3. Grants the necessary permissions for the table
 
+## Updating Parent Payments Function
+
+To fix issues with child names not appearing in the parent dashboard, apply the migration file (`20240713000001_update_parent_payments_function.sql`).
+
+This migration:
+
+1. Drops the existing `get_parent_payments` function
+2. Creates a new version that includes child names in the results
+3. Joins the payments table with the children table to get the child names
+
+## Fixing Parent Payments Display
+
+To fix issues with payments added by the admin not appearing in the parent dashboard, apply the migration files:
+
+1. `20240714000001_fix_parent_payments_function.sql`
+2. `20240714000002_add_debug_payments_function.sql`
+
+These migrations:
+
+1. Fix the `get_parent_payments` function to ensure it retrieves all payments for a parent
+2. Add a `debug_payments` function to help diagnose payment issues
+3. Include additional debugging information in the function output
+
 After applying this migration, make sure to:
 
 1. Sign out and sign back in to refresh your session
