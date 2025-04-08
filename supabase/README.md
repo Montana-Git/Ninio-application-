@@ -90,6 +90,18 @@ These migrations:
 2. Add a `debug_payments` function to help diagnose payment issues
 3. Include additional debugging information in the function output
 
+## Adding Sample Activities and Events
+
+To fix issues with activities and calendar dashboard cards not showing up, apply the migration file:
+
+1. `20240715000001_add_sample_activities_and_events.sql`
+
+This migration:
+
+1. Creates the `child_activities` table if it doesn't exist
+2. Adds sample activities and events for testing
+3. Links activities to children using a helper function
+
 After applying this migration, make sure to:
 
 1. Sign out and sign back in to refresh your session

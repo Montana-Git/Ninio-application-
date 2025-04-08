@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { getEvents, addEvent, updateEvent, deleteEvent } from "@/lib/api";
+import { getEvents, addEvent, updateEvent, deleteEvent, updateEventVisibility } from "@/lib/api";
 
 // Define the Event type
 interface Event {
@@ -58,6 +58,11 @@ interface Event {
   location: string;
   type?: 'holiday' | 'activity' | 'meeting';
   isPublic?: boolean;
+  visibleToParents?: boolean;
+  status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+  color?: string;
+  icon?: string;
+  imageUrl?: string;
 }
 
 interface EventsManagementProps {
@@ -72,6 +77,12 @@ const eventFormSchema = z.object({
   description: z.string().optional(),
   location: z.string().optional(),
   isPublic: z.boolean().default(true),
+  visibleToParents: z.boolean().default(true),
+  status: z.enum(['upcoming', 'ongoing', 'completed', 'cancelled']).default('upcoming'),
+  type: z.enum(['holiday', 'activity', 'meeting']).default('activity'),
+  color: z.string().optional(),
+  icon: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 const EventsManagement = ({ events = [] }: EventsManagementProps) => {
@@ -94,6 +105,12 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
       description: "",
       location: "",
       isPublic: true,
+      visibleToParents: true,
+      status: 'upcoming',
+      type: 'activity',
+      color: "",
+      icon: "",
+      imageUrl: "",
     },
   });
 
@@ -106,6 +123,12 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
       description: "",
       location: "",
       isPublic: true,
+      visibleToParents: true,
+      status: 'upcoming',
+      type: 'activity',
+      color: "",
+      icon: "",
+      imageUrl: "",
     },
   });
 
@@ -137,7 +160,12 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
             description: event.description || '',
             location: event.location || '',
             type: event.type || 'activity',
-            isPublic: event.is_public || true
+            isPublic: event.is_public || true,
+            visibleToParents: event.visible_to_parents !== false,
+            status: event.status || 'upcoming',
+            color: event.color || '',
+            icon: event.icon || '',
+            imageUrl: event.image_url || ''
           }));
 
           setEventsList(formattedEvents);
@@ -167,8 +195,13 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
         time: data.time,
         description: data.description,
         location: data.location,
-        type: 'activity', // Default type
-        is_public: data.isPublic
+        type: data.type || 'activity',
+        is_public: data.isPublic,
+        visible_to_parents: data.visibleToParents,
+        status: data.status || 'upcoming',
+        color: data.color,
+        icon: data.icon,
+        image_url: data.imageUrl
       });
 
       if (error) throw error;
@@ -219,8 +252,13 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
         time: data.time,
         description: data.description,
         location: data.location,
-        type: currentEvent.type || 'activity', // Preserve existing type or set default
-        is_public: data.isPublic
+        type: data.type || currentEvent.type || 'activity',
+        is_public: data.isPublic,
+        visible_to_parents: data.visibleToParents,
+        status: data.status || 'upcoming',
+        color: data.color,
+        icon: data.icon,
+        image_url: data.imageUrl
       });
 
       if (error) throw error;
@@ -236,7 +274,12 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
           description: event.description || '',
           location: event.location || '',
           type: event.type || 'activity',
-          isPublic: event.is_public || true
+          isPublic: event.is_public || true,
+          visibleToParents: event.visible_to_parents !== false,
+          status: event.status || 'upcoming',
+          color: event.color || '',
+          icon: event.icon || '',
+          imageUrl: event.image_url || ''
         }));
 
         setEventsList(formattedEvents);
@@ -294,6 +337,12 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
       description: event.description,
       location: event.location,
       isPublic: event.isPublic,
+      visibleToParents: event.visibleToParents,
+      status: event.status || 'upcoming',
+      type: event.type || 'activity',
+      color: event.color || '',
+      icon: event.icon || '',
+      imageUrl: event.imageUrl || '',
     });
     setIsEditEventOpen(true);
   };
@@ -406,6 +455,26 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                         <FormLabel>Visible to Parents</FormLabel>
                         <FormDescription>
                           Make this event visible to parents in their dashboard
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="visibleToParents"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Visible to Parents</FormLabel>
+                        <FormDescription>
+                          Make this event visible in the parent dashboard
                         </FormDescription>
                       </div>
                     </FormItem>
@@ -665,9 +734,29 @@ const EventsManagement = ({ events = [] }: EventsManagementProps) => {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
+                      <FormLabel>Public Event</FormLabel>
+                      <FormDescription>
+                        Make this event public
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="visibleToParents"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
                       <FormLabel>Visible to Parents</FormLabel>
                       <FormDescription>
-                        Make this event visible to parents in their dashboard
+                        Make this event visible in the parent dashboard
                       </FormDescription>
                     </div>
                   </FormItem>

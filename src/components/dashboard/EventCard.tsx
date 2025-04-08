@@ -1,4 +1,5 @@
 import { Calendar } from "lucide-react";
+import { ensureUniqueId } from "@/lib/uniqueId";
 import { Button } from "@/components/ui/button";
 
 interface EventCardProps {
@@ -16,14 +17,14 @@ interface EventCardProps {
 
 export function EventCard({ event, onClick }: EventCardProps) {
   const { title, date, time, location, type = 'primary' } = event;
-  
+
   // Format date
   const formattedDate = date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric'
   });
-  
+
   // Get color based on type
   const getColor = () => {
     switch (type) {
@@ -35,9 +36,9 @@ export function EventCard({ event, onClick }: EventCardProps) {
       default: return 'bg-blue-100 text-blue-800';
     }
   };
-  
+
   return (
-    <div 
+    <div
       className="flex items-start space-x-4 p-3 rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer"
       onClick={onClick}
     >

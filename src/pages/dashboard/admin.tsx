@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format, formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 import Sidebar from "@/components/dashboard/Sidebar";
 import ActivitiesManagement from "@/components/dashboard/admin/ActivitiesManagement";
@@ -20,7 +21,7 @@ import {
   UserRound,
   Loader2,
 } from "lucide-react";
-import { getChildren, getEvents, getPayments, getUsers } from "@/lib/api";
+import { getChildren, getEvents, getPayments, getUsers, getActivities } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardAssistantButton from "@/components/ai/DashboardAssistantButton";
 
@@ -30,8 +31,9 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const [showEventVisibility, setShowEventVisibility] = useState(false);
 
-  // Dashboard stats state
+  // State for dashboard data
   const [dashboardStats, setDashboardStats] = useState([
+
     {
       title: "Total Students",
       value: "--",
@@ -63,6 +65,8 @@ const AdminDashboard = () => {
   ]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
 
   // Ensure user is authenticated
   useEffect(() => {
@@ -86,7 +90,7 @@ const AdminDashboard = () => {
 
         // Fetch events data
         const { data: eventsData } = await getEvents();
-        const upcomingEvents = eventsData?.filter(event => new Date(event.date) >= new Date()).length || 0;
+        const upcomingEventsCount = eventsData?.filter(event => new Date(event.date) >= new Date()).length || 0;
         let nextEventName = "None scheduled";
 
         if (eventsData && eventsData.length > 0) {
@@ -100,6 +104,52 @@ const AdminDashboard = () => {
           if (nextEvent) {
             nextEventName = nextEvent.title;
           }
+
+          // Format events for display in the overview tab
+          const formattedEvents = sortedEvents
+            .filter(event => new Date(event.date) >= new Date())
+            .slice(0, 3)
+            .map(event => ({
+              id: event.id,
+              title: event.title,
+              date: format(new Date(event.date), 'MMMM d, yyyy'),
+              location: event.location || 'TBD'
+            }));
+
+          setUpcomingEvents(formattedEvents);
+        }
+
+        // Fetch activities data
+        const { data: activitiesData } = await getActivities();
+        let recentActivitiesCount = 0;
+
+        // Process activities for display
+        if (activitiesData && activitiesData.length > 0) {
+          // Count activities from this week
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+          recentActivitiesCount = activitiesData.filter(activity => {
+            try {
+              const activityDate = new Date(activity.date);
+              return activityDate >= oneWeekAgo && activityDate <= new Date();
+            } catch (e) {
+              return false;
+            }
+          }).length;
+
+          // Format recent activities for display
+          const formattedActivities = activitiesData
+            .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+            .slice(0, 3)
+            .map(activity => ({
+              id: activity.id,
+              name: activity.name,
+              date: activity.date ? formatDistanceToNow(new Date(activity.date), { addSuffix: true }) : 'Unknown date',
+              ageGroup: activity.age_group || 'All ages'
+            }));
+
+          setRecentActivities(formattedActivities);
         }
 
         // Fetch payments data
@@ -120,7 +170,7 @@ const AdminDashboard = () => {
           },
           {
             title: "Upcoming Events",
-            value: upcomingEvents.toString(),
+            value: upcomingEventsCount.toString(),
             icon: <Calendar className="h-5 w-5 text-green-500" />,
             change: `Next: ${nextEventName}`,
             trend: "neutral",
@@ -134,10 +184,10 @@ const AdminDashboard = () => {
           },
           {
             title: "Activities This Week",
-            value: "12", // This would need to be calculated from activities data
+            value: recentActivitiesCount.toString(),
             icon: <Activity className="h-5 w-5 text-purple-500" />,
-            change: "+3 from last week", // This would ideally be calculated from historical data
-            trend: "up",
+            change: `${recentActivitiesCount > 0 ? '+' : ''}${recentActivitiesCount} this week`,
+            trend: recentActivitiesCount > 0 ? "up" : "neutral",
           },
         ]);
       } catch (error) {
@@ -254,38 +304,40 @@ const AdminDashboard = () => {
                       Recent Activities
                     </h3>
                     <div className="space-y-4">
-                      {[
-                        {
-                          name: "Finger Painting",
-                          date: "Today",
-                          ageGroup: "3-4 years",
-                        },
-                        {
-                          name: "Story Time",
-                          date: "Yesterday",
-                          ageGroup: "2-5 years",
-                        },
-                        {
-                          name: "Outdoor Play",
-                          date: "2 days ago",
-                          ageGroup: "3-5 years",
-                        },
-                      ].map((activity, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-3 border rounded-md hover:bg-gray-50"
-                        >
-                          <div>
-                            <h4 className="font-medium">{activity.name}</h4>
-                            <p className="text-sm text-gray-500">
-                              {activity.ageGroup}
-                            </p>
+                      {isLoading ? (
+                        // Loading skeleton
+                        Array(3).fill(0).map((_, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded-md">
+                            <div className="w-full">
+                              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                            </div>
                           </div>
-                          <span className="text-sm text-gray-500">
-                            {activity.date}
-                          </span>
+                        ))
+                      ) : recentActivities.length > 0 ? (
+                        // Real activities data
+                        recentActivities.map((activity, index) => (
+                          <div
+                            key={activity.id || index}
+                            className="flex items-center justify-between p-3 border rounded-md hover:bg-gray-50"
+                          >
+                            <div>
+                              <h4 className="font-medium">{activity.name}</h4>
+                              <p className="text-sm text-gray-500">
+                                {activity.ageGroup}
+                              </p>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {activity.date}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        // No activities message
+                        <div className="text-center py-4 text-gray-500">
+                          No recent activities found
                         </div>
-                      ))}
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -297,38 +349,40 @@ const AdminDashboard = () => {
                       Upcoming Events
                     </h3>
                     <div className="space-y-4">
-                      {[
-                        {
-                          title: "Parent-Teacher Meeting",
-                          date: "June 15, 2023",
-                          location: "Main Hall",
-                        },
-                        {
-                          title: "Summer Festival",
-                          date: "July 20, 2023",
-                          location: "Kindergarten Playground",
-                        },
-                        {
-                          title: "Art Exhibition",
-                          date: "August 5, 2023",
-                          location: "Art Room",
-                        },
-                      ].map((event, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-3 border rounded-md hover:bg-gray-50"
-                        >
-                          <div>
-                            <h4 className="font-medium">{event.title}</h4>
-                            <p className="text-sm text-gray-500">
-                              {event.location}
-                            </p>
+                      {isLoading ? (
+                        // Loading skeleton
+                        Array(3).fill(0).map((_, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded-md">
+                            <div className="w-full">
+                              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                            </div>
                           </div>
-                          <span className="text-sm text-gray-500">
-                            {event.date}
-                          </span>
+                        ))
+                      ) : upcomingEvents.length > 0 ? (
+                        // Real events data
+                        upcomingEvents.map((event, index) => (
+                          <div
+                            key={event.id || index}
+                            className="flex items-center justify-between p-3 border rounded-md hover:bg-gray-50"
+                          >
+                            <div>
+                              <h4 className="font-medium">{event.title}</h4>
+                              <p className="text-sm text-gray-500">
+                                {event.location}
+                              </p>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {event.date}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        // No events message
+                        <div className="text-center py-4 text-gray-500">
+                          No upcoming events found
                         </div>
-                      ))}
+                      )}
                     </div>
                   </CardContent>
                 </Card>

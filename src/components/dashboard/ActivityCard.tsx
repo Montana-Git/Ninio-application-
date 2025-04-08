@@ -1,10 +1,11 @@
 
 import { cn } from '@/lib/utils';
+import { ensureUniqueId } from '@/lib/uniqueId';
 import DashboardCard from './DashboardCard';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, isValid } from 'date-fns';
 
 export interface Activity {
   id: string;
@@ -79,8 +80,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {activities.map((activity) => (
-              <div key={activity.id} className="flex items-start space-x-4">
+            {activities.map((activity, index) => (
+              <div key={ensureUniqueId(activity.id, `activity-${index}-`)} className="flex items-start space-x-4">
                 {activity.user ? (
                   <Avatar className="h-9 w-9">
                     <AvatarImage src={activity.user.avatar} alt={activity.user.name} />
@@ -96,9 +97,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     <p className="text-sm font-medium">{activity.title}</p>
                     <time
                       className="text-xs text-muted-foreground"
-                      title={format(activity.timestamp, 'PPpp')}
+                      title={activity.timestamp && isValid(new Date(activity.timestamp))
+                        ? format(new Date(activity.timestamp), 'PPpp')
+                        : 'Date not available'}
                     >
-                      {formatDistanceToNow(activity.timestamp, { addSuffix: true })}
+                      {activity.timestamp && isValid(new Date(activity.timestamp))
+                        ? formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })
+                        : 'Unknown date'}
                     </time>
                   </div>
                   {activity.description && (
